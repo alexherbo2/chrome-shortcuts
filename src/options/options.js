@@ -27,17 +27,31 @@ for (const buttonElement of buttonElements) {
   }
 }
 
-// Sends a single message to the service worker.
+/**
+ * Sends a single message to the service worker.
+ *
+ * @param {object} message
+ * @returns {void}
+ */
 function sendMessage(message) {
   port.postMessage(message)
 }
 
-// Gets options.
+/**
+ * Gets options.
+ *
+ * @returns {Promise<object>}
+ */
 async function getOptions() {
   return chrome.storage.sync.get()
 }
 
-// Saves options.
+/**
+ * Saves options.
+ *
+ * @param {object} partialOptions
+ * @returns {void}
+ */
 function saveOptions(partialOptions) {
   sendMessage({
     type: 'saveOptions',
@@ -45,21 +59,33 @@ function saveOptions(partialOptions) {
   })
 }
 
-// Resets options.
+/**
+ * Resets options.
+ *
+ * @returns {void}
+ */
 function resetOptions() {
   sendMessage({
     type: 'resetOptions'
   })
 }
 
-// Imports options.
+/**
+ * Imports options.
+ *
+ * @returns {Promise<void>}
+ */
 async function importOptions() {
   const configFile = await selectFile('application/json')
   const newOptions = await readFileAsJSON(configFile)
   saveOptions(newOptions)
 }
 
-// Exports options.
+/**
+ * Exports options.
+ *
+ * @returns {Promise<void>}
+ */
 async function exportOptions() {
   const options = await getOptions()
   const content = JSON.stringify(options, null, 2)
@@ -67,7 +93,14 @@ async function exportOptions() {
   saveFile(content, `shortcuts-options-${dateString}.json`, 'application/json')
 }
 
-// Saves file.
+/**
+ * Saves file.
+ *
+ * @param {string} content
+ * @param {string} fileName
+ * @param {string} contentType
+ * @returns {void}
+ */
 function saveFile(content, fileName, contentType) {
   const anchorElement = document.createElement('a')
   const file = new Blob([content], { type: contentType })
@@ -78,7 +111,12 @@ function saveFile(content, fileName, contentType) {
   URL.revokeObjectURL(url)
 }
 
-// Selects file.
+/**
+ * Selects file.
+ *
+ * @param {string} accept
+ * @returns {Promise<File>}
+ */
 async function selectFile(accept) {
   return new Promise((resolve) => {
     const inputElement = document.createElement('input')
@@ -89,13 +127,24 @@ async function selectFile(accept) {
   })
 }
 
-// Reads file as JSON.
+/**
+ * Reads file as JSON.
+ *
+ * @param {File} file
+ * @returns {Promise<any>}
+ */
 async function readFileAsJSON(file) {
   return new Response(file).json()
 }
 
-// Returns the ISO date portion of the specified date.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toLocaleDateString
+/**
+ * Returns the ISO date portion of the specified date.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/toLocaleDateString
+ *
+ * @param {Date} date
+ * @returns {string}
+ */
 function getISODateString(date) {
   return date.toLocaleDateString('en-CA')
 }

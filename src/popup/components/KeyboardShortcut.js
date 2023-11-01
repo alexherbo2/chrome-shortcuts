@@ -47,6 +47,12 @@ class KeyboardShortcut extends HTMLElement {
     this.addKey('code', keyHint, this.dataset.code)
   }
 
+  /**
+   * @param {string} slot
+   * @param {string} title
+   * @param {string} content
+   * @returns {void}
+   */
   addKey(slot, title, content) {
     const keyElement = document.createElement('kbd')
     keyElement.slot = slot

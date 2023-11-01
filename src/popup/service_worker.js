@@ -7,6 +7,24 @@
 // Service workers: https://developer.chrome.com/docs/extensions/mv3/service_workers/
 // Long-lived connections: https://developer.chrome.com/docs/extensions/mv3/messaging/#connect
 
+/**
+ * @typedef {object} BackgroundContext
+ * @property {MostRecentlyUsedTabsManager} mostRecentlyUsedTabsManager
+ */
+
+/**
+ * @typedef {PopupCommandMessage} PopupMessage
+ */
+
+/**
+ * @typedef {object} PopupCommandMessage
+ * @property {"command"} type
+ * @property {string} commandName
+ * @property {boolean} passingMode
+ * @property {boolean} stickyWindow
+ * @property {chrome.tabs.Tab} tab
+ */
+
 import * as commands from '../commands.js'
 
 // Retrieve the popup config.
@@ -14,7 +32,12 @@ const popupConfigPromise = fetch('popup/config.json').then(response => response.
 
 let popupIsOpen = false
 
-// Handles the initial setup when the extension is first installed or updated to a new version.
+/**
+ * Handles the initial setup when the extension is first installed or updated to a new version.
+ *
+ * @param {object} details
+ * @returns {void}
+ */
 function onInstalled(details) {
   switch (details.reason) {
     case 'install':
@@ -26,13 +49,22 @@ function onInstalled(details) {
   }
 }
 
-// Handles the initial setup when the extension is first installed.
+/**
+ * Handles the initial setup when the extension is first installed.
+ *
+ * @returns {Promise<void>}
+ */
 async function onInstall() {
   const popupConfig = await popupConfigPromise
   await chrome.storage.sync.set({ popupConfig })
 }
 
-// Handles the setup when the extension is updated to a new version.
+/**
+ * Handles the setup when the extension is updated to a new version.
+ *
+ * @param {string} previousVersion
+ * @returns {Promise<void>}
+ */
 async function onUpdate(previousVersion) {
   const popupConfig = await popupConfigPromise
   // Merge config to handle added commands.
@@ -41,7 +73,13 @@ async function onUpdate(previousVersion) {
   await chrome.storage.sync.set({ popupConfig })
 }
 
-// Handles a new connection when the popup shows up.
+/**
+ * Handles a new connection when the popup shows up.
+ *
+ * @param {chrome.runtime.Port} port
+ * @param {BackgroundContext} backgroundContext
+ * @returns {void}
+ */
 function onConnect(port, backgroundContext) {
   popupIsOpen = true
   port.onDisconnect.addListener(onDisconnect)
@@ -50,14 +88,27 @@ function onConnect(port, backgroundContext) {
   })
 }
 
-// Handles disconnection when the popup goes away.
+/**
+ * Handles disconnection when the popup goes away.
+ *
+ * @param {chrome.runtime.Port} port
+ * @returns {void}
+ */
 function onDisconnect(port) {
   popupIsOpen = false
 }
 
-// Handles message by using a discriminator field.
-// Each message has a `type` field, and the rest of the fields, and their meaning, depend on its value.
-// Reference: https://crystal-lang.org/api/master/JSON/Serializable.html#discriminator-field
+/**
+ * Handles message by using a discriminator field.
+ * Each message has a `type` field, and the rest of the fields, and their meaning, depend on its value.
+ *
+ * Reference: https://crystal-lang.org/api/master/JSON/Serializable.html#discriminator-field
+ *
+ * @param {PopupMessage} message
+ * @param {chrome.runtime.Port} port
+ * @param {BackgroundContext} backgroundContext
+ * @returns {void}
+ */
 function onMessage(message, port, backgroundContext) {
   switch (message.type) {
     case 'command':
@@ -68,7 +119,14 @@ function onMessage(message, port, backgroundContext) {
   }
 }
 
-// Handles a single command.
+/**
+ * Handles a single command.
+ *
+ * @param {PopupCommandMessage} message
+ * @param {chrome.runtime.Port} port
+ * @param {BackgroundContext} backgroundContext
+ * @returns {Promise<void>}
+ */
 async function onCommandMessage(message, port, backgroundContext) {
   const { command: commandName, passingMode, stickyWindow, tab } = message
   const { mostRecentlyUsedTabsManager } = backgroundContext

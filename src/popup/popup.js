@@ -1,4 +1,3 @@
-import { getCurrentTab } from '../lib/browser.js'
 import * as commands from './commands.js'
 import CustomMenu from './components/CustomMenu.js'
 import MenuItem from './components/MenuItem.js'
@@ -26,9 +25,14 @@ port.onMessage.addListener((message, port) => {
   }
 })
 
-// Handles a single command.
+/**
+ * Handles a single command.
+ *
+ * @param {string} commandName
+ * @returns {Promise<void>}
+ */
 async function handleCommand(commandName) {
-  const tab = await getCurrentTab()
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
   await commands[commandName]({ tab, window, port })
 }
 

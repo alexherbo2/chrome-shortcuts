@@ -1,22 +1,36 @@
-// This class provides the functionality to manage a collection of items, in the order of most recently used.
-// It allows efficient addition, removal, and retrieval of these items.
-// Cache replacement policies: https://en.wikipedia.org/wiki/Cache_replacement_policies
-
 import LinkedList from './linked_list.js'
 
+/**
+ * This class provides the functionality to manage a collection of items, in the order of most recently used.
+ * It allows efficient addition, removal, and retrieval of these items.
+ *
+ * Cache replacement policies: https://en.wikipedia.org/wiki/Cache_replacement_policies
+ */
 class MRU {
-  // Creates a new MRU cache.
-  // Initializes an empty hash map and a linked list to manage item order.
+  /**
+   * Creates a new MRU cache.
+   * Initializes an empty hash map and a linked list to manage item order.
+   */
   constructor() {
-    // A hash map that stores items as keys and linked list nodes as values.
-    // Used for quick access to item nodes.
+    /**
+     * A hash map that stores items as keys and linked list nodes as values.
+     * Used for quick access to item nodes.
+     */
     this.hashMap = new Map
-    // A linked list that represents the order of the most recently used items.
+    /**
+     * A linked list that represents the order of the most recently used items.
+     */
     this.linkedList = new LinkedList
   }
 
-  // Adds item to cache,
-  // adding or updating its position in the cache.
+  /**
+   * Adds item to cache,
+   * adding or updating its position in the cache.
+   * Returns the MRU object with added item.
+   *
+   * @param {*} item
+   * @returns {MRU}
+   */
   add(item) {
     if (this.hashMap.has(item)) {
       this.delete(item)
@@ -27,10 +41,16 @@ class MRU {
       this.hashMap.set(nextNode.value, node)
     }
     this.hashMap.set(item, null)
+    return this
   }
 
-  // Deletes a specified item from the cache.
-  // Returns true if the item existed and has been removed, or false if the item does not exist.
+  /**
+   * Deletes a specified item from the cache.
+   * Returns true if the item existed and has been removed, or false if the item does not exist.
+   *
+   * @param {*} item
+   * @returns {boolean}
+   */
   delete(item) {
     if (!this.hashMap.has(item)) {
       return false
@@ -45,10 +65,14 @@ class MRU {
     if (nextNode) {
       this.hashMap.set(nextNode.value, previousNode)
     }
-    this.hashMap.delete(item)
+    return this.hashMap.delete(item)
   }
 
-  // Returns an iterator for the items in the cache, in the order of most recently used.
+  /**
+   * Returns an iterator for the items in the cache, in the order of most recently used.
+   *
+   * @returns {Iterable<any>}
+   */
   *values() {
     yield* this.linkedList
   }

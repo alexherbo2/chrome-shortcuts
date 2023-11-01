@@ -25,10 +25,19 @@ class CustomMenu extends HTMLElement {
     this.addEventListener('keydown', this.handleKey)
   }
 
+  /**
+   * @param {KeyboardEvent} keyboardEvent
+   * @param {MenuItem} menuItem
+   * @returns {void}
+   */
   addKeyboardShortcut(keyboardEvent, menuItem) {
     this.keymap.set(keyboardEvent, menuItem)
   }
 
+  /**
+   * @param {KeyboardEvent} keyboardEvent
+   * @returns {void}
+   */
   handleKey(keyboardEvent) {
     if (!this.keymap.has(keyboardEvent)) {
       return

@@ -8,12 +8,38 @@
 // Manifest: https://developer.chrome.com/docs/extensions/mv3/manifest/
 // Commands: https://developer.chrome.com/docs/extensions/reference/commands/
 
-import { partition, chunk } from './lib/array.js'
-import { getISODateString } from './lib/date.js'
-import { modulo, clamp } from './lib/math.js'
-import { clickPageElement, focusPageElement, blurActiveElement, writeTextToClipboard, getSelectedText, scrollBy, scrollByPages, scrollTo, scrollToMax, prompt } from './script.js'
-import { focusTab, isTabInGroup, getTabGroup, executeScript, updateTabs, updateTabGroups, reloadTabs, moveTabs, closeTabs, duplicateTabs, discardTabs, groupTabs, ungroupTabs, highlightTabs, sendNotification, waitForNavigation } from './lib/browser.js'
-import { findTabIndex, getSelectedTabs, getAllTabs, getAllTabGroups, getVisibleTabs, getOpenTabRelative, getCurrentWindow, getOpenWindowRelative } from './context.js'
+/**
+ * @typedef {object} Context
+ * @property {chrome.tabs.Tab} tab
+ * @property {MostRecentlyUsedTabsManager} mostRecentlyUsedTabsManager
+ */
+
+import {
+  blurActiveElement,
+  clickPageElement,
+  focusPageElement,
+  getSelectedText,
+  prompt,
+  scrollBy,
+  scrollByPages,
+  scrollTo,
+  scrollToMax,
+  writeTextToClipboard,
+} from './injectable_scripts.js'
+
+import {
+  chunk,
+  clamp,
+  getISODateString,
+  getOpenTabRelative,
+  getOpenWindowRelative,
+  getVisibleTabs,
+  modulo,
+  // moveTabs,
+  partition,
+  sendNotification,
+  waitForNavigation,
+} from './utils.js'
 
 // Language-sensitive string comparison
 // Reference: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Collator
@@ -35,339 +61,815 @@ const Direction = { Backward: -1, Forward: 1 }
 
 // Navigation ------------------------------------------------------------------
 
-// Goes back to the previous page in tab’s history.
-export async function goBack(context) {
-  await chrome.tabs.goBack(context.tab.id)
-  await waitForNavigation(context.tab.id, 'onCommitted')
+/**
+ * TODO: OK
+ * Goes back to the previous page in tab’s history.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function goBack(cx) {
+  await chrome.tabs.goBack(cx.tab.id)
+  await waitForNavigation(cx.tab.id, 'onCommitted')
 }
 
-// Goes forward to the next page in tab’s history.
-export async function goForward(context) {
-  await chrome.tabs.goForward(context.tab.id)
-  await waitForNavigation(context.tab.id, 'onCommitted')
+/**
+ * TODO: OK
+ * Goes forward to the next page in tab’s history.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function goForward(cx) {
+  await chrome.tabs.goForward(cx.tab.id)
+  await waitForNavigation(cx.tab.id, 'onCommitted')
 }
 
-// Reloads selected tabs.
-export async function reloadTab(context) {
-  const tabs = await getSelectedTabs(context)
-  await reloadTabs(tabs)
+/**
+ * TODO: OK
+ * Reloads selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function reloadTab(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
+  await Promise.all(
+    tabs.map((tab) =>
+      chrome.tabs.reload(tab.id)
+    )
+  )
 }
 
-// Reloads selected tabs, ignoring cached content.
-export async function reloadTabWithoutCache(context) {
-  const tabs = await getSelectedTabs(context)
-  await reloadTabs(tabs, { bypassCache: true })
+/**
+ * TODO: OK
+ * Reloads selected tabs, ignoring cached content.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function reloadTabWithoutCache(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
+  await Promise.all(
+    tabs.map((tab) =>
+      chrome.tabs.reload(tab.id, {
+        bypassCache: true
+      })
+    )
+  )
 }
 
-// Goes to the next page in the series, if one is available.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/rel#attr-next
-export async function goToNextPage(context) {
-  await executeScript(context.tab, clickPageElement, '[rel="next"]')
+/**
+ * TODO: OK
+ * Goes to the next page in the series, if one is available.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/rel#attr-next
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function goToNextPage(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: clickPageElement,
+    args: ['[rel="next"]']
+  })
 }
 
-// Goes to the previous page in the series, if one is available.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/rel#attr-prev
-export async function goToPreviousPage(context) {
-  await executeScript(context.tab, clickPageElement, '[rel="prev"]')
+/**
+ * TODO: OK
+ * Goes to the previous page in the series, if one is available.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/rel#attr-prev
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function goToPreviousPage(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: clickPageElement,
+    args: ['[rel="prev"]']
+  })
 }
 
-// Navigates at the URL specified.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/API/Location/assign
-async function assignURL(context, func) {
-  const baseURL = new URL(context.tab.url)
-  const relativeURL = func(baseURL)
-  const navigateURL = new URL(relativeURL, baseURL)
-  await chrome.tabs.update(context.tab.id, { url: navigateURL.toString() })
+/**
+ * TODO: OK
+ * Navigates at the URL specified.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/API/Location/assign
+ *
+ * @param {Context} cx
+ * @param {function} func
+ * @returns {Promise<void>}
+ */
+async function assignURL(cx, func) {
+  const baseURL = new URL(cx.tab.url)
+  const navigateURL = new URL(func(baseURL), baseURL)
+  return chrome.tabs.update(cx.tab.id, {
+    url: navigateURL.toString()
+  })
 }
 
-// Removes any URL parameters.
-export async function removeURLParams(context) {
-  await assignURL(context, url => url.pathname)
+/**
+ * TODO: OK
+ * Removes any URL parameters.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function removeURLParams(cx) {
+  await assignURL(cx, url => url.pathname)
 }
 
-// Goes up in the URL hierarchy.
-export async function goUp(context) {
-  await assignURL(context, url => url.pathname.endsWith('/') ? '..' : '.')
+/**
+ * TODO: OK
+ * Goes up in the URL hierarchy.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function goUp(cx) {
+  await assignURL(cx, url => url.pathname.endsWith('/') ? '..' : '.')
 }
 
-// Goes to the root URL.
-export async function goToRoot(context) {
-  await assignURL(context, url => '/')
+/**
+ * TODO: OK
+ * Goes to the root URL.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function goToRoot(cx) {
+  await assignURL(cx, url => '/')
 }
 
 // Accessibility ---------------------------------------------------------------
 
-// Focuses the first input, if any.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input
-export async function focusInput(context) {
-  await executeScript(context.tab, focusPageElement, 'input')
+/**
+ * TODO: OK
+ * Focuses the first input, if any.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusInput(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: focusPageElement,
+    args: ['input']
+  })
 }
 
-// Focuses the first text area, if any.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/textarea
-export async function focusTextArea(context) {
-  await executeScript(context.tab, focusPageElement, 'textarea')
+/**
+ * TODO: OK
+ * Focuses the first text area, if any.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/textarea
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusTextArea(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: focusPageElement,
+    args: ['textarea']
+  })
 }
 
-// Focuses the first video, if any.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
-export async function focusVideo(context) {
-  await executeScript(context.tab, focusPageElement, 'video')
+/**
+ * TODO: OK
+ * Focuses the first video, if any.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusVideo(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: focusPageElement,
+    args: ['video']
+  })
 }
 
-// Blurs the active element.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/API/Document/activeElement
-export async function blurElement(context) {
-  await executeScript(context.tab, blurActiveElement)
+/**
+ * TODO: OK
+ * Blurs the active element.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/API/Document/activeElement
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function blurElement(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: blurActiveElement
+  })
 }
 
 // Clipboard -------------------------------------------------------------------
 
-async function copy_impl(context, func, message) {
-  const tabs = await getSelectedTabs(context)
+/**
+ * TODO: OK
+ * @param {Context} cx
+ * @param {function} func
+ * @param {string} message
+ * @returns {Promise<void>}
+ */
+async function copy_impl(cx, func, message) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
   const text = tabs.map(func).join('\n')
-  await executeScript(context.tab, writeTextToClipboard, text)
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: writeTextToClipboard,
+    args: [text]
+  })
   await sendNotification(message)
 }
 
-// Copies URL of selected tabs.
-export async function copyURL(context) {
-  await copy_impl(context, tab => tab.url, 'URL copied to clipboard')
+/**
+ * TODO: OK
+ * Copies URL of selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function copyURL(cx) {
+  await copy_impl(cx, tab => tab.url, 'URL copied to clipboard')
 }
 
-// Copies title of selected tabs.
-export async function copyTitle(context) {
-  await copy_impl(context, tab => tab.title, 'Title copied to clipboard')
+/**
+ * TODO: OK
+ * Copies title of selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function copyTitle(cx) {
+  await copy_impl(cx, tab => tab.title, 'Title copied to clipboard')
 }
 
-// Copies title and URL of selected tabs.
-export async function copyTitleAndURL(context) {
-  await copy_impl(context, ({title, url}) => `[${title}](${url})`, 'Title and URL copied to clipboard')
+/**
+ * TODO: OK
+ * Copies title and URL of selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function copyTitleAndURL(cx) {
+  await copy_impl(cx, ({title, url}) => `[${title}](${url})`, 'Title and URL copied to clipboard')
 }
 
 // Web search ------------------------------------------------------------------
 
-// Performs a search for selected text using the default search engine.
-// The results will be displayed in a new tab.
-export async function openWebSearchForSelectedText(context) {
-  const [{ result: selectedText }] = await executeScript(context.tab, getSelectedText)
+/**
+ * TODO: OK
+ * Performs a search for selected text using the default search engine.
+ * The results will be displayed in a new tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openWebSearchForSelectedText(cx) {
+  const [{ result: selectedText }] = await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: getSelectedText
+  })
 
   // Bail out if there is nothing to search.
-  if (!selectedText) {
+  if (selectedText === null) {
     return
   }
 
   // Perform a search using the default search engine.
   // The results will be displayed in a new tab.
-  await chrome.search.query({ text: selectedText, disposition: NEW_TAB_DISPOSITION })
+  await chrome.search.query({
+    text: selectedText,
+    disposition: NEW_TAB_DISPOSITION
+  })
 
   // Post-fix the created tab state.
-  const openerTab = context.tab
-  const createdTab = await chrome.tabs.update({ openerTabId: openerTab.id }).then(tab => chrome.tabs.move(tab.id, { index: openerTab.index + 1 }))
+  const [createdTab] = await chrome.tabs.query({
+    active: true,
+    lastFocusedWindow: true
+  })
 
-  // Add the new tab to the opener tab’s group, if it has one.
-  if (isTabInGroup(openerTab)) {
-    await chrome.tabs.group({ tabIds: [createdTab.id], groupId: openerTab.groupId })
-  }
+  await Promise.all([
+    chrome.tabs.update(createdTab.id, {
+      openerTabId: cx.tab.id
+    }),
+
+    chrome.tabs.move(createdTab.id, {
+      index: cx.tab.index + 1
+    }),
+
+    // Add the new tab to the opener tab’s group, if it has one.
+    cx.tab.groupId !== TAB_GROUP_ID_NONE && chrome.tabs.group({
+      tabIds: [createdTab.id],
+      groupId: cx.tab.groupId
+    })
+  ])
 }
 
 // Scroll ----------------------------------------------------------------------
 
-// Scrolls down.
-export async function scrollDown(context) {
-  await executeScript(context.tab, scrollBy, 0, 70)
+/**
+ * TODO: OK
+ * Scrolls down.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollDown(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollBy,
+    args: [0, 70]
+  })
 }
 
-// Scrolls up.
-export async function scrollUp(context) {
-  await executeScript(context.tab, scrollBy, 0, -70)
+/**
+ * TODO: OK
+ * Scrolls up.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollUp(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollBy,
+    args: [0, -70]
+  })
 }
 
-// Scrolls left.
-export async function scrollLeft(context) {
-  await executeScript(context.tab, scrollBy, -70, 0)
+/**
+ * TODO: OK
+ * Scrolls left.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollLeft(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollBy,
+    args: [-70, 0]
+  })
 }
 
-// Scrolls right.
-export async function scrollRight(context) {
-  await executeScript(context.tab, scrollBy, 70, 0)
+/**
+ * TODO: OK
+ * Scrolls right.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollRight(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollBy,
+    args: [70, 0]
+  })
 }
 
-// Scrolls one page down.
-export async function scrollPageDown(context) {
-  await executeScript(context.tab, scrollByPages, 0.9)
+/**
+ * TODO: OK
+ * Scrolls one page down.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollPageDown(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollByPages,
+    args: [0.9]
+  })
 }
 
-// Scrolls one page up.
-export async function scrollPageUp(context) {
-  await executeScript(context.tab, scrollByPages, -0.9)
+/**
+ * TODO: OK
+ * Scrolls one page up.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollPageUp(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollByPages,
+    args: [-0.9]
+  })
 }
 
-// Scrolls half page down.
-export async function scrollHalfPageDown(context) {
-  await executeScript(context.tab, scrollByPages, 0.5)
+/**
+ * TODO: OK
+ * Scrolls half page down.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollHalfPageDown(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollByPages,
+    args: [0.5]
+  })
 }
 
-// Scrolls half page up.
-export async function scrollHalfPageUp(context) {
-  await executeScript(context.tab, scrollByPages, -0.5)
+/**
+ * TODO: OK
+ * Scrolls half page up.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollHalfPageUp(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollByPages,
+    args: [-0.5]
+  })
 }
 
-// Scrolls to the top of the page.
-export async function scrollToTop(context) {
-  await executeScript(context.tab, scrollTo, 0, 0)
+/**
+ * TODO: OK
+ * Scrolls to the top of the page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollToTop(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollTo,
+    args: [0, 0]
+  })
 }
 
-// Scrolls to the bottom of the page.
-export async function scrollToBottom(context) {
-  await executeScript(context.tab, scrollToMax, 0)
+/**
+ * TODO: OK
+ * Scrolls to the bottom of the page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function scrollToBottom(cx) {
+  await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: scrollToMax,
+    args: [0]
+  })
 }
 
 // Zoom ------------------------------------------------------------------------
 
-// Zooms in.
-export async function zoomIn(context) {
-  const zoomFactor = await chrome.tabs.getZoom(context.tab.id)
-  await chrome.tabs.setZoom(context.tab.id, zoomFactor + 0.1)
+/**
+ * TODO: OK
+ * Zooms in.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function zoomIn(cx) {
+  const zoomFactor = await chrome.tabs.getZoom(cx.tab.id)
+  await chrome.tabs.setZoom(cx.tab.id, zoomFactor + 0.1)
 }
 
-// Zooms out.
-export async function zoomOut(context) {
-  const zoomFactor = await chrome.tabs.getZoom(context.tab.id)
-  await chrome.tabs.setZoom(context.tab.id, zoomFactor - 0.1)
+/**
+ * TODO: OK
+ * Zooms out.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function zoomOut(cx) {
+  const zoomFactor = await chrome.tabs.getZoom(cx.tab.id)
+  await chrome.tabs.setZoom(cx.tab.id, zoomFactor - 0.1)
 }
 
-// Resets the zoom factor.
-export async function zoomReset(context) {
-  await chrome.tabs.setZoom(context.tab.id, 0)
+/**
+ * TODO: OK
+ * Resets the zoom factor.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function zoomReset(cx) {
+  await chrome.tabs.setZoom(cx.tab.id, 0)
 }
 
-// Turns full-screen mode on or off.
-export async function toggleFullScreen(context) {
-  const currentWindow = await getCurrentWindow(context)
+/**
+ * TODO: OK
+ * Turns full-screen mode on or off.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function toggleFullScreen(cx) {
+  const currentWindow = await chrome.windows.get(cx.tab.windowId)
   const nextWindowState = currentWindow.state === 'fullscreen' ? 'normal' : 'fullscreen'
-  await chrome.windows.update(currentWindow.id, { state: nextWindowState })
+  await chrome.windows.update(currentWindow.id, {
+    state: nextWindowState
+  })
 }
 
 // Create tabs -----------------------------------------------------------------
 
-// Opens and activates a new tab.
-export async function openNewTab(context) {
-  await chrome.tabs.create({ active: true, openerTabId: context.tab.id })
+/**
+ * TODO: OK
+ * Opens and activates a new tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openNewTab(cx) {
+  await chrome.tabs.create({
+    active: true,
+    openerTabId: cx.tab.id
+  })
 }
 
-// Opens and activates a new tab to the right.
-export async function openNewTabRight(context) {
-  const openerTab = context.tab
-  const createdTab = await chrome.tabs.create({ active: true, index: openerTab.index + 1, openerTabId: openerTab.id })
-
+/**
+ * TODO: OK
+ * Opens and activates a new tab to the right.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openNewTabRight(cx) {
+  const createdTab = await chrome.tabs.create({
+    active: true,
+    index: cx.tab.index + 1,
+    openerTabId: cx.tab.id
+  })
   // Add the new tab to the opener tab’s group, if it has one.
-  if (isTabInGroup(openerTab)) {
-    await chrome.tabs.group({ tabIds: [createdTab.id], groupId: openerTab.groupId })
+  if (cx.tab.groupId !== TAB_GROUP_ID_NONE) {
+    await chrome.tabs.group({
+      tabIds: [createdTab.id],
+      groupId: cx.tab.groupId
+    })
   }
 }
 
-// Opens a new window.
-export async function openNewWindow(context) {
-  await chrome.windows.create()
+/**
+ * TODO: OK
+ * Opens a new window.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openNewWindow(cx) {
+  await chrome.windows.create({
+    focused: true
+  })
 }
 
-// Opens a new window in Incognito mode.
-export async function openNewIncognitoWindow(context) {
-  await chrome.windows.create({ incognito: true })
+/**
+ * TODO: OK
+ * Opens a new window in Incognito mode.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openNewIncognitoWindow(cx) {
+  await chrome.windows.create({
+    focused: true,
+    incognito: true
+  })
 }
 
 // Close tabs ------------------------------------------------------------------
 
-// Closes selected tabs.
-export async function closeTab(context) {
-  const tabs = await getSelectedTabs(context)
-  await closeTabs(tabs)
+/**
+ * TODO: OK
+ * Closes selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function closeTab(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
+  const tabIds = tabs.map(tab => tab.id)
+  await chrome.tabs.remove(tabIds)
 }
 
-// Closes the window that contains the tab.
-export async function closeWindow(context) {
-  await chrome.windows.remove(context.tab.windowId)
+/**
+ * TODO: OK
+ * Closes the window that contains the tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function closeWindow(cx) {
+  await chrome.windows.remove(cx.tab.windowId)
 }
 
-// Reopens previously closed tabs.
-export async function restoreTab(context) {
+/**
+ * TODO: OK
+ * Reopens previously closed tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function restoreTab(cx) {
   await chrome.sessions.restore()
 }
 
 // Tab state -------------------------------------------------------------------
 
-// Duplicates selected tabs.
-export async function duplicateTab(context) {
-  const isSelected = tab => tab.highlighted
-  const byGroup = tab => tab.groupId
+/**
+ * TODO: OK
+ * Duplicates selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function duplicateTab(cx) {
+  const tabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
 
-  const allTabs = await getAllTabs(context)
-  const allTabGroups = await getAllTabGroups(context)
+  const tabGroups = await chrome.tabGroups.query({
+    windowId: cx.tab.windowId
+  })
 
   const groupIdToProperties = new Map(
-    allTabGroups.map(({ id, title, color, collapsed }) => [
+    tabGroups.map(({ id, title, color, collapsed }) => [
       id, { title, color, collapsed }
     ])
   )
 
-  const duplicatedTabChunksWithOrigin = await Promise.all(
-    chunk(allTabs, byGroup).map(([groupId, tabs]) => {
+  const tabPartition = chunk(tabs, byGroup).map(([groupId, tabs]) => {
+    const [selectedTabs, otherTabs] = partition(tabs, isSelected)
+    return [groupId, selectedTabs, otherTabs]
+  })
+
+  const duplicatedTabMap = new Map
+
+  for (const [groupId, selectedTabs, otherTabs] of tabPartition) {
+    // Duplicate selected tabs.
+    let duplicatedTabs = await Promise.all(
+      selectedTabs.map((tab) =>
+        chrome.tabs.duplicate(tab.id)
+      )
+    )
+
+    // Duplicate tab group if fully selected.
+    if (groupId !== TAB_GROUP_ID_NONE && otherTabs.length === 0) {
       const groupProperties = groupIdToProperties.get(groupId)
-      const selectedTabs = tabs.filter(isSelected)
+      const groupId = await chrome.tabs.group({
+        tabIds: duplicatedTabs.map(getTabId)
+      })
 
-      // Duplicate selected tabs.
-      // Only duplicate tab group if fully selected.
-      const duplicatedTabs = groupId !== TAB_GROUP_ID_NONE && selectedTabs.length === tabs.length
-        ? duplicateTabs(selectedTabs)
-          .then(tabs => groupTabs(tabs))
-          .then(groupId => chrome.tabGroups.update(groupId, groupProperties))
-          .then(tabGroup => chrome.tabs.query({ groupId: tabGroup.id }))
-        : duplicateTabs(selectedTabs)
+      await chrome.tabGroups.update(groupId, groupProperties)
 
-      return duplicatedTabs.then(duplicatedTabs => [duplicatedTabs, selectedTabs])
-    })
-  )
+      // Resync tab position.
+      duplicatedTabs = await chrome.tabs.query({
+        groupId
+      })
+    }
+
+    for (const index in selectedTabs) {
+      duplicatedTabMap.set(selectedTabs[index].id, duplicatedTabs[index].index)
+    }
+  }
 
   // Select duplicated tabs.
-  const duplicatedTabMap = new Map(
-    duplicatedTabChunksWithOrigin.flatMap(([duplicatedTabs, originalTabs]) =>
-      originalTabs.map((tab, index) => [tab.id, duplicatedTabs[index]])
-    )
-  )
-  const tabToActivate = duplicatedTabMap.get(context.tab.id)
-  await highlightTabs([tabToActivate, ...duplicatedTabMap.values()])
+  const tabsToHighlight = [
+    duplicatedTabMap.get(cx.tab.id), ...duplicatedTabMap.values()
+  ]
+
+  await chrome.tabs.highlight({
+    tabs: tabsToHighlight,
+    windowId: cx.tab.windowId
+  })
 }
 
-// Pins or unpins selected tabs.
-export async function togglePinTab(context) {
-  const tabs = await getSelectedTabs(context)
+/**
+ * Pins or unpins selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function togglePinTab(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
   const someTabsNotPinned = tabs.some((tab) => !tab.pinned)
-  await updateTabs(tabs, { pinned: someTabsNotPinned })
+  await Promise.all(
+    tabs.map((tab) => chrome.tabs.update(tab.id, { pinned: someTabsNotPinned }))
+  )
 }
 
-// Groups specified tabs and preserves selection.
-async function groupTabsAndPreserveSelection(context, tabs) {
-  const groupId = await groupTabs(tabs)
+/**
+ * Groups specified tabs and preserves selection.
+ *
+ * @param {number[]} tabIds
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function groupTabsAndPreserveSelection(cx, tabIds) {
+  const { id: tabId, windowId } = cx.tab
+  const groupId = await chrome.tabs.group({ tabIds })
   const groupedTabs = await chrome.tabs.query({ groupId })
-  const tabToActivate = groupedTabs.find((tab) => tab.id === context.tab.id)
-  return highlightTabs([tabToActivate, ...groupedTabs])
+  const tabToActivate = groupedTabs.find((tab) => tab.id === tabId)
+  const tabsToHighlight = [tabToActivate, ...groupedTabs].map(tab => tab.index)
+  await chrome.tabs.highlight({
+    tabs: tabsToHighlight,
+    windowId
+  })
 }
 
-// Groups or ungroups selected tabs.
-export async function toggleGroupTab(context) {
-  const tabs = await getSelectedTabs(context)
-  const someTabsNotInGroup = tabs.some((tab) => !isTabInGroup(tab))
-  const groupAction = someTabsNotInGroup ? groupTabsAndPreserveSelection.bind(null, context) : ungroupTabs
-  await groupAction(tabs)
+/**
+ * Groups or ungroups selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function toggleGroupTab(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
+  const someTabsNotInGroup = tabs.some((tab) => tab.groupId === TAB_GROUP_ID_NONE)
+  const groupAction = someTabsNotInGroup ? groupTabsAndPreserveSelection.bind(null, cx) : chrome.tabs.ungroup.bind(null)
+  const tabIds = tabs.map(tab => tab.id)
+  await groupAction(tabIds)
 }
 
-// Collapses or uncollapses tab groups.
-// Note: Active groups are not collapsible.
-// Ensures highlighted tabs are visible.
-export async function toggleCollapseTabGroups(context) {
-  const selectedTabs = await getSelectedTabs(context)
-  const allTabGroups = await getAllTabGroups(context)
+/**
+ * Collapses or uncollapses tab groups.
+ * Note: Active groups are not collapsible.
+ * Ensures highlighted tabs are visible.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function toggleCollapseTabGroups(cx) {
+  const selectedTabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
+  const allTabGroups = await chrome.tabGroups.query({
+    windowId: cx.tab.windowId
+  })
 
   // Determine whose groups are active.
   // A group that contains highlighted tabs is considered active.
@@ -381,30 +883,70 @@ export async function toggleCollapseTabGroups(context) {
   await Promise.all([
     // At least one group is not collapsed, so collapse everything.
     // All groups are collapsed, so expand everything.
-    updateTabGroups(collapsibleGroups, { collapsed: someExpanded }),
+    Promise.all(
+      collapsibleGroups.map((tabGroup) =>
+        chrome.tabGroups.update(tabGroup.id, { collapsed: someExpanded })
+      )
+    ),
     // Ensure highlighted tabs are visible.
-    updateTabGroups(activeGroups, { collapsed: false })
+    Promise.all(
+      activeGroups.map((tabGroup) =>
+        chrome.tabGroups.update(tabGroup.id, { collapsed: false })
+      )
+    )
   ])
 }
 
-// Mutes or unmutes selected tabs.
-export async function toggleMuteTab(context) {
-  const tabs = await getSelectedTabs(context)
+/**
+ * Mutes or unmutes selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function toggleMuteTab(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
   const someTabsNotMuted = tabs.some((tab) => !tab.mutedInfo.muted)
-  await updateTabs(tabs, { muted: someTabsNotMuted })
+  await Promise.all(
+    tabs.map((tab) =>
+      chrome.tabs.update(tab.id, {
+        muted: someTabsNotMuted
+      })
+    )
+  )
 }
 
-// Discards selected tabs.
-export async function discardTab(context) {
-  const tabs = await getSelectedTabs(context)
-  await discardTabs(tabs)
+/**
+ * Discards selected tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function discardTab(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
+  await Promise.all(
+    tabs.map((tab) => chrome.tabs.discard(tab.id))
+  )
 }
 
 // Organize tabs ---------------------------------------------------------------
 
-// Sorts tabs by URL.
-export async function sortTabsByURL(context) {
-  const tabs = await getSelectedTabs(context)
+/**
+ * Sorts tabs by URL.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function sortTabsByURL(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
   const tabChunks = chunk(tabs, (tab) => tab.pinned || tab.groupId)
 
   // Sort chunked tabs by URL.
@@ -422,13 +964,24 @@ export async function sortTabsByURL(context) {
   )
 }
 
-// Groups tabs by domain.
-export async function groupTabsByDomain(context) {
-  const tabs = await getSelectedTabs(context)
+/**
+ * Groups tabs by domain.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function groupTabsByDomain(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
+  const tabIds = tabs.map(tab => tab.id)
   const tabsByDomain = Map.groupBy(tabs, tab => new URL(tab.url).hostname)
 
   // Get all tab groups and group them by title.
-  const tabGroups = await getAllTabGroups(context)
+  const tabGroups = await chrome.tabGroups.query({
+    windowId: cx.tab.windowId
+  })
   const tabGroupsByTitle = Object.groupBy(tabGroups, tabGroup => tabGroup.title)
 
   // Group tabs by domain.
@@ -438,26 +991,37 @@ export async function groupTabsByDomain(context) {
 
       // Add tabs to an existing group if possible.
       return tabGroups
-        ? groupTabs(tabs, tabGroups[0])
-        : groupTabs(tabs).then(groupId => chrome.tabGroups.update(groupId, { title: hostname }))
+        ? chrome.tabs.group({ tabIds, groupId: tabGroups[0].id })
+        : chrome.tabs.group({ tabIds }).then(groupId => chrome.tabGroups.update(groupId, { title: hostname }))
     })
   )
 }
 
 // Manage tab groups -----------------------------------------------------------
 
-// Renames tab group (prompts for a new name).
-// Tags: args
-export async function renameTabGroupPrompt(context) {
-  const tabGroup = await getTabGroup(context.tab)
-
+/**
+ * Renames tab group (prompts for a new name).
+ * Tags: args
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function renameTabGroupPrompt(cx) {
   // Fail-fast if there is no tab group.
-  if (!tabGroup) {
+  if (cx.tab.groupId === TAB_GROUP_ID_NONE) {
     return
   }
 
+  const tabGroup = await chrome.tabGroups.get(cx.tab.groupId)
+
   // Prompt for a new name.
-  const [{ result: tabGroupTitle }] = await executeScript(context.tab, prompt, 'Name this group', tabGroup.title)
+  const [{ result: tabGroupTitle }] = await chrome.scripting.executeScript({
+    target: {
+      tabId: cx.tab.id
+    },
+    func: prompt,
+    args: ['Name this group', tabGroup.title]
+  })
 
   // Bail out if there is no new name.
   if (tabGroupTitle === null || tabGroupTitle === tabGroup.title) {
@@ -468,14 +1032,19 @@ export async function renameTabGroupPrompt(context) {
   await chrome.tabGroups.update(tabGroup.id, { title: tabGroupTitle })
 }
 
-// Cycles through tab group colors.
-async function cycleTabGroupColor(context, delta) {
-  const tabGroup = await getTabGroup(context.tab)
-
+/**
+ * Cycles through tab group colors.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function cycleTabGroupColor(cx, delta) {
   // Fail-fast if there is no tab group.
-  if (!tabGroup) {
+  if (cx.tab.groupId === TAB_GROUP_ID_NONE) {
     return
   }
+
+  const tabGroup = await chrome.tabGroups.get(cx.tab.groupId)
 
   // Get the next color.
   const colorIndex = tabGroupColors.indexOf(tabGroup.color)
@@ -486,225 +1055,389 @@ async function cycleTabGroupColor(context, delta) {
   await chrome.tabGroups.update(tabGroup.id, { color: nextColor })
 }
 
-// Cycles forward through tab group colors.
-export async function cycleTabGroupColorForward(context) {
-  await cycleTabGroupColor(context, 1)
+/**
+ * Cycles forward through tab group colors.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function cycleTabGroupColorForward(cx) {
+  await cycleTabGroupColor(cx, 1)
 }
 
-// Cycles backward through tab group colors.
-export async function cycleTabGroupColorBackward(context) {
-  await cycleTabGroupColor(context, -1)
+/**
+ * Cycles backward through tab group colors.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function cycleTabGroupColorBackward(cx) {
+  await cycleTabGroupColor(cx, -1)
 }
 
 // Switch tabs -----------------------------------------------------------------
 
-// Activates the first audible tab.
-export async function focusAudibleTab(context) {
-  const [audibleTab] = await chrome.tabs.query({ audible: true })
+/**
+ * Activates the first audible tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusAudibleTab(cx) {
+  const [audibleTab] = await chrome.tabs.query({
+    audible: true
+  })
   if (audibleTab) {
-    await focusTab(audibleTab)
+    await chrome.tabs.update(audibleTab.id, { active: true })
+    await chrome.windows.update(audibleTab.windowId, { focused: true })
   }
 }
 
-// Activates an open tab relative to the current tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups—
-// and wraps around.
-async function focusTabRelative(context, delta) {
-  const tab = await getOpenTabRelative(context, delta)
-  await focusTab(tab)
+/**
+ * Activates an open tab relative to the current tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups—
+ * and wraps around.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function focusTabRelative(cx, delta) {
+  const tab = await getOpenTabRelative(cx.tab.id, cx.tab.windowId, cx, delta)
+  await chrome.tabs.update(tab.id, { active: true })
 }
 
-// Activates the next open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups—
-// and wraps around.
-export async function focusNextTab(context) {
-  await focusTabRelative(context, 1)
+/**
+ * Activates the next open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups—
+ * and wraps around.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusNextTab(cx) {
+  await focusTabRelative(cx, 1)
 }
 
-// Activates the previous open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups—
-// and wraps around.
-export async function focusPreviousTab(context) {
-  await focusTabRelative(context, -1)
+/**
+ * Activates the previous open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups—
+ * and wraps around.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusPreviousTab(cx) {
+  await focusTabRelative(cx, -1)
 }
 
-// Activates a tab by its index.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-async function focusTabByIndex(context, index) {
-  const tabs = await getVisibleTabs(context)
+/**
+ * Activates a tab by its index.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function focusTabByIndex(cx, index) {
+  const tabs = await getVisibleTabs(cx.tab.windowId)
   const targetTab = tabs.at(index)
 
   if (targetTab) {
-    await focusTab(targetTab)
+    await chrome.tabs.update(targetTab.id, { active: true })
+    await chrome.windows.update(targetTab.windowId, { focused: true })
   }
 }
 
-// Activates the leftmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusFirstTab(context) {
-  await focusTabByIndex(context, 0)
+/**
+ * Activates the leftmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusFirstTab(cx) {
+  await focusTabByIndex(cx, 0)
 }
 
-// Activates the second leftmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusSecondTab(context) {
-  await focusTabByIndex(context, 1)
+/**
+ * Activates the second leftmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusSecondTab(cx) {
+  await focusTabByIndex(cx, 1)
 }
 
-// Activates the third leftmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusThirdTab(context) {
-  await focusTabByIndex(context, 2)
+/**
+ * Activates the third leftmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusThirdTab(cx) {
+  await focusTabByIndex(cx, 2)
 }
 
-// Activates the fourth leftmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusFourthTab(context) {
-  await focusTabByIndex(context, 3)
+/**
+ * Activates the fourth leftmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusFourthTab(cx) {
+  await focusTabByIndex(cx, 3)
 }
 
-// Activates the fifth leftmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusFifthTab(context) {
-  await focusTabByIndex(context, 4)
+/**
+ * Activates the fifth leftmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusFifthTab(cx) {
+  await focusTabByIndex(cx, 4)
 }
 
-// Activates the sixth leftmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusSixthTab(context) {
-  await focusTabByIndex(context, 5)
+/**
+ * Activates the sixth leftmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusSixthTab(cx) {
+  await focusTabByIndex(cx, 5)
 }
 
-// Activates the seventh leftmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusSeventhTab(context) {
-  await focusTabByIndex(context, 6)
+/**
+ * Activates the seventh leftmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusSeventhTab(cx) {
+  await focusTabByIndex(cx, 6)
 }
 
-// Activates the eighth leftmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusEighthTab(context) {
-  await focusTabByIndex(context, 7)
+/**
+ * Activates the eighth leftmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusEighthTab(cx) {
+  await focusTabByIndex(cx, 7)
 }
 
-// Activates the rightmost open tab.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function focusLastTab(context) {
-  await focusTabByIndex(context, -1)
+/**
+ * Activates the rightmost open tab.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusLastTab(cx) {
+  await focusTabByIndex(cx, -1)
 }
 
-// Activates the nth most recently used tab among your open tabs.
-async function focusMostRecentTabByIndex(context, index) {
-  const { mostRecentlyUsedTabsManager } = context
+/**
+ * Activates the nth most recently used tab among your open tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function focusMostRecentTabByIndex(cx, index) {
+  const { mostRecentlyUsedTabsManager } = cx
   const tabIds = mostRecentlyUsedTabsManager.getMostRecentTabs()
   if (tabIds.length > index) {
     const tab = await chrome.tabs.get(tabIds[index])
-    await focusTab(tab)
+    await chrome.tabs.update(tab.id, { active: true })
+    await chrome.windows.update(tab.windowId, { focused: true })
   }
 }
 
-// Activates the last active tab.
-export async function focusLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 0)
+/**
+ * Activates the last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 0)
 }
 
-// Activates the second last active tab.
-export async function focusSecondLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 1)
+/**
+ * Activates the second last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusSecondLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 1)
 }
 
-// Activates the third last active tab.
-export async function focusThirdLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 2)
+/**
+ * Activates the third last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusThirdLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 2)
 }
 
-// Activates the fourth last active tab.
-export async function focusFourthLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 3)
+/**
+ * Activates the fourth last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusFourthLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 3)
 }
 
-// Activates the fifth last active tab.
-export async function focusFifthLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 4)
+/**
+ * Activates the fifth last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusFifthLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 4)
 }
 
-// Activates the sixth last active tab.
-export async function focusSixthLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 5)
+/**
+ * Activates the sixth last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusSixthLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 5)
 }
 
-// Activates the seventh last active tab.
-export async function focusSeventhLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 6)
+/**
+ * Activates the seventh last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusSeventhLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 6)
 }
 
-// Activates the eighth last active tab.
-export async function focusEighthLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 7)
+/**
+ * Activates the eighth last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusEighthLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 7)
 }
 
-// Activates the ninth last active tab.
-export async function focusNinthLastActiveTab(context) {
-  await focusMostRecentTabByIndex(context, 8)
+/**
+ * Activates the ninth last active tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusNinthLastActiveTab(cx) {
+  await focusMostRecentTabByIndex(cx, 8)
 }
 
-// Activates an open window relative to the current window.
-// Skips minimized windows and wraps around.
-async function focusWindowRelative(context, delta) {
-  const window = await getOpenWindowRelative(context, delta)
+/**
+ * Activates an open window relative to the current window.
+ * Skips minimized windows and wraps around.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function focusWindowRelative(cx, delta) {
+  const window = await getOpenWindowRelative(cx.tab.windowId, delta)
   await chrome.windows.update(window.id, { focused: true })
 }
 
-// Activates the next open window.
-// Skips minimized windows and wraps around.
-export async function focusNextWindow(context) {
-  await focusWindowRelative(context, 1)
+/**
+ * Activates the next open window.
+ * Skips minimized windows and wraps around.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusNextWindow(cx) {
+  await focusWindowRelative(cx, 1)
 }
 
-// Activates the previous open window.
-// Skips minimized windows and wraps around.
-export async function focusPreviousWindow(context) {
-  await focusWindowRelative(context, -1)
+/**
+ * Activates the previous open window.
+ * Skips minimized windows and wraps around.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function focusPreviousWindow(cx) {
+  await focusWindowRelative(cx, -1)
 }
 
 // Move tabs -------------------------------------------------------------------
 
-// Grabs selected tabs.
-// Moves selected tabs to the current tab.
-export async function grabTab(context) {
-  const tabs = await getSelectedTabs(context)
+/**
+ * TODO: OK
+ * Grabs selected tabs.
+ * Moves selected tabs to the current tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function grabTab(cx) {
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
 
-  const currentTab = context.tab
-  const currentTabIndex = findTabIndex(context, tabs)
-
+  const currentTabIndex = tabs.findIndex(tab => tab.id === cx.tab.id)
   const leftTabs = tabs.slice(0, currentTabIndex)
   const rightTabs = tabs.slice(currentTabIndex + 1)
 
   // Move selected tabs to the current tab.
-  const currentTabPromise = Promise.resolve(currentTab)
   await Promise.all([
-    leftTabs.reduceRight((previousTabPromise, currentTab) =>
-      previousTabPromise.then((previousTab) =>
-        chrome.tabs.move(currentTab.id, { index: previousTab.index - 1 })), currentTabPromise
-    ),
-    rightTabs.reduce((previousTabPromise, currentTab) =>
-      previousTabPromise.then((previousTab) =>
-        chrome.tabs.move(currentTab.id, { index: previousTab.index + 1 })), currentTabPromise
-    )
+    moveTabs(leftTabs.map(getTabId), {
+      index: cx.tab.index
+    }),
+    moveTabs(rightTabs.map(getTabId).toReversed(), {
+      index: cx.tab.index + 1
+    })
   ])
 
-  // Add selected tabs—except pinned tabs—to the current tab’s group.
-  const tabIds = tabs.flatMap(tab => tab.pinned ? [] : tab.id)
-  if (isTabInGroup(currentTab)) {
-    await chrome.tabs.group({ tabIds, groupId: currentTab.groupId })
-  } else {
-    await chrome.tabs.ungroup(tabIds)
+  // Add selected tabs—except pinned tabs—to the current tab’s group, if it has one.
+  if (cx.tab.groupId !== TAB_GROUP_ID_NONE) {
+    await chrome.tabs.group({
+      tabIds: [].concat(
+        leftTabs.flatMap(tab => tab.pinned ? [] : tab.id),
+        rightTabs.map(getTabId)
+      ),
+      groupId: cx.tab.groupId
+    })
   }
 }
 
-// Moves selected tabs left/right.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-async function moveTabDirection(context, direction) {
+/**
+ * TODO: OK
+ * Moves selected tabs left/right.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @param {Direction} direction
+ * @returns {Promise<void>}
+ */
+async function moveTabDirection(cx, direction) {
   let focusIndex, anchorIndex, focusOffset, anchorOffset, reduceMethod, moveGroupToTab, ungroupTabs
   switch (direction) {
     case Direction.Backward:
@@ -712,16 +1445,16 @@ async function moveTabDirection(context, direction) {
       anchorIndex = -1
       focusOffset = -1
       anchorOffset = 1
-      reduceMethod = 'reduce'
       // Note: Chrome does not behave correctly when moving multiple tabs to the right,
       // hence moving the group at the end of the window beforehand.
-      moveGroupToTab = async (sourceTab, destinationTab) => {
-        await chrome.tabGroups.move(sourceTab.groupId, { index: -1 })
-        destinationTab = await chrome.tabs.get(destinationTab.id)
-        return chrome.tabGroups.move(sourceTab.groupId, { index: destinationTab.index + anchorOffset })
+      moveGroupToTab = async (groupId, tabId) => {
+        await chrome.tabGroups.move(groupId, { index: -1 })
+        targetTab = await chrome.tabs.get(tabId)
+        return chrome.tabGroups.move(groupId, {
+          index: targetTab.index + anchorOffset
+        })
       }
-      ungroupTabs = (tabs) => {
-        const tabIds = tabs.map(tab => tab.id)
+      ungroupTabs = (tabIds) => {
         return chrome.tabs.ungroup(tabIds)
       }
       break
@@ -730,257 +1463,450 @@ async function moveTabDirection(context, direction) {
       anchorIndex = 0
       focusOffset = 1
       anchorOffset = 0
-      reduceMethod = 'reduceRight'
-      moveGroupToTab = (sourceTab, destinationTab) => {
-        return chrome.tabGroups.move(sourceTab.groupId, { index: destinationTab.index })
+      moveGroupToTab = async (groupId, tabId) => {
+        targetTab = await chrome.tabs.get(tabId)
+        return chrome.tabGroups.move(groupId, {
+          index: targetTab.index + anchorOffset
+        })
       }
       // Note: Chrome ungroups tabs sequentially,
       // hence reversing tab IDs to preserve order.
-      ungroupTabs = (tabs) => {
-        const tabIds = tabs.map((_, index) => tabs.at(-index - 1).id)
-        return chrome.tabs.ungroup(tabIds)
+      ungroupTabs = (tabIds) => {
+        return chrome.tabs.ungroup(tabIds.toReversed())
       }
       break
   }
 
-  const isSelected = tab => tab.highlighted
-  const byGroup = tab => tab.groupId
-
   // Partition pinned tabs and group tabs by group.
-  const allTabs = await getAllTabs(context)
-  const allTabsByGroup = Object.groupBy(allTabs, byGroup)
-  const startIndex = allTabs.findIndex(tab => !tab.pinned)
-  const [pinnedTabs, otherTabs] = startIndex === -1
-    ? [allTabs, []]
-    : [allTabs.slice(0, startIndex), allTabs.slice(startIndex)]
+  const tabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
+
+  const tabGroups = await chrome.tabGroups.query({
+    windowId: cx.tab.windowId
+  })
+
+  const tabsByGroup = Map.groupBy(tabs, byGroup)
+
+  const groupIdToSelPartition = new Map(
+    Array.from(tabsByGroup, ([groupId, tabs]) => {
+      const [selectedTabs, otherTabs] = partition(tabs, isSelected)
+      return [groupId, [selectedTabs, otherTabs]]
+    })
+  )
 
   // Determine whose tabs are hidden.
   // A tab in a collapsed group is considered hidden.
-  const tabGroups = await getAllTabGroups(context)
-  const collapsedInfo = Object.fromEntries(tabGroups.map((tabGroup) => [tabGroup.id, tabGroup.collapsed]))
+  const collapsedInfo = new Map(
+    tabGroups.map(({ id, collapsed }) => [
+      id, collapsed
+    ])
+  )
 
-  // Move chunked tabs.
-  const pinnedChunks = chunk(pinnedTabs, isSelected)
-  const otherChunks = chunk(otherTabs, isSelected)
-  // Handle the left/right boundary.
-  // Do nothing if the first chunk to proceed is selected.
-  // This also ensures that selected tabs are always preceded/followed by another tab.
-  if (pinnedChunks.length > 0 && pinnedChunks.at(focusIndex)[0]) {
-    pinnedChunks.splice(focusIndex, 1)
-  }
-  if (otherChunks.length > 0 && otherChunks.at(focusIndex)[0]) {
-    const [[_, selectedTabs]] = otherChunks.splice(focusIndex, 1)
-    const [[groupId, tabs], ...otherGroups] = Map.groupBy(selectedTabs, byGroup)
-    const singleGroup = otherGroups.length === 0
-    const fullySelected = groupId !== TAB_GROUP_ID_NONE && tabs.length === allTabsByGroup[groupId].length
-    // Only ungroup tabs if the selection
-    // spawns a single group and is not fully selected.
-    if (singleGroup && !fullySelected) {
-      await ungroupTabs(tabs)
-    }
-  }
-  await Promise.all([
-    // Move pinned tabs.
-    pinnedChunks[reduceMethod]((previousPromise, [highlighted, tabs]) => previousPromise.then((value) => {
-      if (!highlighted) {
-        return previousPromise
-      }
-      const focusTab = tabs.at(focusIndex)
-      const anchorTab = tabs.at(anchorIndex)
-      const targetTab = allTabs[focusTab.index + focusOffset]
-      return chrome.tabs.move(targetTab.id, { index: anchorTab.index })
-    }), Promise.resolve()),
-
-    // Move other tabs.
-    otherChunks[reduceMethod](async (previousPromise, [highlighted, tabs]) => {
-      await previousPromise
-
-      if (!highlighted) {
-        return previousPromise
-      }
-
-      // Get some info about the tab selection,
-      // whether it spawns multiple groups, entirely selected.
-      const groupChunks = chunk(tabs, byGroup)
-      const groupCount = groupChunks.length
-      const singleGroup = groupCount === 1
-      const manyGroups = groupCount > 1
-      const [groupId, anchorGroup] = groupChunks.at(anchorIndex)
-      const fullySelected = groupId !== TAB_GROUP_ID_NONE && anchorGroup.length === allTabsByGroup[groupId].length
-
-      // Get some info about the range of selected tabs.
-      const focusTab = tabs.at(focusIndex)
-      const anchorTab = tabs.at(anchorIndex)
-      const anchorTabIsInGroup = isTabInGroup(anchorTab)
-
-      // Get some info about the target tab.
-      // Determine whether the target tab is hidden.
-      // A tab in a collapsed group is considered hidden.
-      const targetTab = allTabs[focusTab.index + focusOffset]
-      const targetTabIsInGroup = isTabInGroup(targetTab)
-      const targetTabIsHidden = collapsedInfo[targetTab.groupId]
-
-      // Move selected tabs, tabs in group or tab group left/right.
-      // Only move tab group if fully selected.
-      // Skips hidden tabs—the ones whose are in collapsed tab groups.
-      //
-      // Tab strip—before/after:
-      // Backward: [A] __[B] [B] [B]__ => __[B] [B] [B]__ [A]
-      // Forward: __[A] [A] [A]__ [B] => [B] __[A] [A] [A]__
-      if (!targetTabIsInGroup && singleGroup && !anchorTabIsInGroup) {
-        return chrome.tabs.move(targetTab.id, { index: anchorTab.index })
-      }
-      // Backward: [A] [__[B] [B]__ [...]] => [A] __[B] [B]__ [[...]]
-      // Forward: [[...] __[A] [A]__] [B] => [[...]] __[A] [A]__ [B]
-      else if (!targetTabIsInGroup && singleGroup && !fullySelected) {
-        return ungroupTabs(tabs)
-      }
-      // Backward: [A] __[[B] [B] [B]]__ => __[[B] [B] [B]]__ [A]
-      // Forward: __[[A] [A] [A]]__ [B] => [B] __[[A] [A] [A]]__
-      else if (!targetTabIsInGroup && singleGroup && fullySelected) {
-        return chrome.tabs.move(targetTab.id, { index: anchorTab.index })
-      }
-      // Backward: [A] __[[B] [B] [B]] [C] [C] [C]__ => __[[B] [B] [B]] [C] [C] [C]__ [A]
-      // Forward: __[A] [A] [A] [[B] [B] [B]]__ [C] => [C] __[A] [A] [A] [[B] [B] [B]]__
-      else if (!targetTabIsInGroup && manyGroups && !anchorTabIsInGroup) {
-        return chrome.tabs.move(targetTab.id, { index: anchorTab.index })
-      }
-      // Backward: [A] __[B] [B] [B] [[C] [C]__ [...]] => __[B] [B] [B] [C] [C]__ [A] [[...]]
-      // Forward: [[...] __[A] [A]] [B] [B] [B]__ [C] => [[...]] [C] __[A] [A] [B] [B] [B]__
-      else if (!targetTabIsInGroup && manyGroups && !fullySelected) {
-        await ungroupTabs(anchorGroup)
-        return chrome.tabs.move(targetTab.id, { index: anchorTab.index })
-      }
-      // Backward: [A] __[B] [B] [B] [[C] [C] [C]]__ => __[B] [B] [B] [[C] [C] [C]]__ [A]
-      // Forward: __[[A] [A] [A]] [B] [B] [B]__ [C] => [C] __[[A] [A] [A]] [B] [B] [B]__
-      else if (!targetTabIsInGroup && manyGroups && fullySelected) {
-        return chrome.tabs.move(targetTab.id, { index: anchorTab.index })
-      }
-      // Backward: [[A] __[B]] [C] [C]__ => [[A] __[B] [C] [C]__]
-      // Forward: __[A] [A] [[B]__ [C]] => [__[A] [A] [B]__ [C]]
-      else if (targetTab.groupId === focusTab.groupId && targetTab.groupId !== anchorTab.groupId) {
-        return groupTabs(tabs, { id: targetTab.groupId })
-      }
-      // Backward: [[A] __[B] [B] [B]__] => [__[B] [B] [B]__ [A]]
-      // Forward: [__[A] [A] [A]__ [B]] => [[B] __[A] [A] [A]__]
-      else if (targetTab.groupId === focusTab.groupId && targetTab.groupId === anchorTab.groupId) {
-        return chrome.tabs.move(targetTab.id, { index: anchorTab.index })
-      }
-      // Backward: [[A]] __[B] [B] [B]__ => [[A] __[B] [B] [B]__]
-      // Forward: __[A] [A] [A]__ [[B]] => [__[A] [A] [A]__ [B]]
-      else if (!targetTabIsHidden && singleGroup && !anchorTabIsInGroup) {
-        return groupTabs(tabs, { id: targetTab.groupId })
-      }
-      // Backward: [[...]] __[B] [B] [B]__ => __[B] [B] [B]__ [[...]]
-      // Forward: __[A] [A] [A]__ [[...]] => [[...]] __[A] [A] [A]__
-      else if (targetTabIsHidden && singleGroup && !anchorTabIsInGroup) {
-        await moveGroupToTab(targetTab, anchorTab)
-      }
-      // Backward: [[A]] [__[B] [B]__ [...]] => [[A]] __[B] [B]__ [[...]]
-      // Forward: [[...] __[A] [A]__] [[B]] => [[...]] __[A] [A]__ [[B]]
-      else if (targetTabIsInGroup && singleGroup && !fullySelected) {
-        return ungroupTabs(tabs)
-      }
-      // Backward: [[A]] __[[B] [B] [B]]__ => __[[B] [B] [B]]__ [[A]]
-      // Forward: __[[A] [A] [A]]__ [[B]] => [[B]] __[[A] [A] [A]]__
-      else if (targetTabIsInGroup && singleGroup && fullySelected) {
-        await moveGroupToTab(targetTab, anchorTab)
-      }
-      // Backward: [[A]] __[[B] [B] [B]] [C] [C] [C]__ => __[[B] [B] [B]] [C] [C] [C]__ [[A]]
-      // Forward: __[A] [A] [A] [[B] [B] [B]]__ [[C]] => [[C]] __[A] [A] [A] [[B] [B] [B]]__
-      else if (targetTabIsInGroup && manyGroups && !anchorTabIsInGroup) {
-        await moveGroupToTab(targetTab, anchorTab)
-      }
-      // Backward: [[A]] __[B] [B] [B] [[C] [C]__ [...]] => __[B] [B] [B] [C] [C]__ [[A]] [[...]]
-      // Forward: [[...] __[A] [A]] [B] [B] [B]__ [[C]] => [[...]] [[C]] __[A] [A] [B] [B] [B]__
-      else if (targetTabIsInGroup && manyGroups && !fullySelected) {
-        await ungroupTabs(anchorGroup)
-        await moveGroupToTab(targetTab, anchorTab)
-      }
-      // Backward: [[A]] __[B] [B] [B] [[C] [C] [C]]__ => __[B] [B] [B] [[C] [C] [C]]__ [[A]]
-      // Forward: __[[A] [A] [A]] [B] [B] [B]__ [[C]] => [[C]] __[[A] [A] [A]] [B] [B] [B]__
-      else if (targetTabIsInGroup && manyGroups && fullySelected) {
-        await moveGroupToTab(targetTab, anchorTab)
-      }
-    }, Promise.resolve())
-  ])
-}
-
-// Moves selected tabs left.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function moveTabLeft(context) {
-  await moveTabDirection(context, Direction.Backward)
-}
-
-// Moves selected tabs right.
-// Skips hidden tabs—the ones whose are in collapsed tab groups.
-export async function moveTabRight(context) {
-  await moveTabDirection(context, Direction.Forward)
-}
-
-// Moves selected tabs to the far left/right.
-async function moveTabEdgeDirection(context, direction) {
-  let tabIndex, reduceMethod
-  switch (direction) {
-    case Direction.Backward:
-      tabIndex = 0
-      reduceMethod = 'reduce'
-      break
-    case Direction.Forward:
-      tabIndex = -1
-      reduceMethod = 'reduceRight'
-      break
-  }
-
-  // Partition pinned tabs.
-  const tabs = await getAllTabs(context)
   const startIndex = tabs.findIndex(tab => !tab.pinned)
   const [pinnedTabs, otherTabs] = startIndex === -1
     ? [tabs, []]
     : [tabs.slice(0, startIndex), tabs.slice(startIndex)]
 
-  // Move chunked tabs.
-  const isSelected = tab => tab.highlighted
-  const byGroup = tab => tab.groupId
-  const moveProperties = { index: tabIndex }
-  await Promise.all([
+  const movedTabs = []
+  {
+    // Move chunked tabs.
+    const tabPartition = chunk(pinnedTabs, isSelected)
+
+    // Handle the left/right boundary.
+    // Do nothing if the first chunk to proceed is selected.
+    // This also ensures that selected tabs are always preceded/followed by another tab.
+    if (tabPartition.length > 0) {
+      const [isSelected] = tabPartition.at(focusIndex)
+      if (isSelected) {
+        tabPartition.splice(focusIndex, 1)
+      }
+    }
+
     // Move pinned tabs.
-    moveTabs(pinnedTabs.filter(isSelected), moveProperties),
+    if (tabPartition.length > 0) {
+      for (let index = tabPartition[0][0] ? 0 : 1; index < tabPartition.length; index += 2) {
+        const [isSelected, tabSelection] = tabPartition[index]
+        const focusTab = tabSelection.at(focusIndex)
+        const anchorTab = tabSelection.at(anchorIndex)
+        const targetTab = tabs[focusTab.index + focusOffset]
+        moveTabs.push(
+          chrome.tabs.move(targetTab.id, {
+            index: anchorTab.index
+          })
+        )
+      }
+    }
+  }
+  {
+    // Move chunked tabs.
+    const tabPartition = chunk(otherTabs, isSelected)
+
+    // Handle the left/right boundary.
+    // Do nothing if the first chunk to proceed is selected.
+    // This also ensures that selected tabs are always preceded/followed by another tab.
+    if (tabPartition.length > 0) {
+      const [isSelected, tabSelection] = tabPartition.at(focusIndex)
+      // Only ungroup tabs if the selection
+      // spawns a single group and is not fully selected.
+      if (isSelected) {
+        const focusTab = tabSelection.at(focusIndex)
+        const anchorTab = tabSelection.at(anchorIndex)
+        if (
+          anchorTab.groupId === focusTab.groupId &&
+          focusTab.groupId !== TAB_GROUP_ID_NONE &&
+          groupIdToSelPartition.get(focusTab.groupId)[1].length === 0
+        ) {
+          movedTabs.push(
+            ungroupTabs(tabSelection.map(getTabId))
+          )
+        }
+        tabPartition.splice(focusIndex, 1)
+      }
+    }
 
     // Move other tabs.
-    chunk(otherTabs, byGroup)[reduceMethod]((previousPromise, [groupId, tabs]) => previousPromise.then((value) => {
-      const selectedTabs = tabs.filter(isSelected)
-      // Move selected tabs, tabs in group or tab group to the far left/right.
-      // Only move tab group if fully selected.
-      return selectedTabs.length && groupId !== TAB_GROUP_ID_NONE
-        ? selectedTabs.length === tabs.length
-        // Handle pinned tabs.
-        // Error: Cannot move the group to an index that is in the middle of pinned tabs.
-        ? chrome.tabGroups.move(groupId, { index: tabIndex || pinnedTabs.length })
-        : moveTabs(selectedTabs, moveProperties).then(tabs => groupTabs(tabs, { id: groupId }))
-        : moveTabs(selectedTabs, moveProperties)
-    }), Promise.resolve())
-  ])
+    // Only iterate selected tabs.
+    if (tabPartition.length > 0) {
+      for (let index = tabPartition[0][0] ? 0 : 1; index < tabPartition.length; index += 2) {
+        const [isSelected, tabSelection] = tabPartition[index]
+        // Get some info about the tab selection,
+        // whether it spawns multiple groups, entirely selected.
+        const focusTab = tabSelection.at(focusIndex)
+        const anchorTab = tabSelection.at(anchorIndex)
+        const targetTab = tabs[focusTab.index + focusOffset]
+
+        // Get some info about the range of selected tabs.
+        // Get some info about the target tab.
+        // Determine whether the target tab is hidden.
+        // A tab in a collapsed group is considered hidden.
+        // Move selected tabs, tabs in group or tab group left/right.
+        // Only move tab group if fully selected.
+        // Skips hidden tabs—the ones whose are in collapsed tab groups.
+        //
+        // Tab strip—before/after:
+        // Backward: [A] __[B] [B] [B]__ => __[B] [B] [B]__ [A]
+        // Forward: __[A] [A] [A]__ [B] => [B] __[A] [A] [A]__
+        if (
+          anchorTab.groupId === TAB_GROUP_ID_NONE &&
+          targetTab.groupId === TAB_GROUP_ID_NONE
+        ) {
+          console.log('TODO')
+          movedTabs.push(
+            chrome.tabs.move(targetInfo.tabId, {
+              index: anchorInfo.tabIndex
+            })
+          )
+        }
+        // Backward: [A] [__[B] [B]__ [...]] => [A] __[B] [B]__ [[...]]
+        // Forward: [[...] __[A] [A]__] [B] => [[...]] __[A] [A]__ [B]
+        else if (
+          groupIdToSelPartition.get(anchorTab.groupId)[1].length > 0 &&
+          anchorTab.groupId === focusTab.groupId &&
+          targetTab.groupId === TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            ungroupTabs(anchorInfo.tabIds)
+          )
+        }
+        // Backward: [A] __[[B] [B] [B]]__ => __[[B] [B] [B]]__ [A]
+        // Forward: __[[A] [A] [A]]__ [B] => [B] __[[A] [A] [A]]__
+        else if (
+          groupIdToSelPartition.get(anchorTab.groupId)[1].length === 0 &&
+          anchorTab.groupId === focusTab.groupId &&
+          targetTab.groupId === TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            chrome.tabs.move(targetInfo.tabId, {
+              index: anchorInfo.tabIndex
+            })
+          )
+        }
+        // Backward: [A] __[[B] [B] [B]] [C] [C] [C]__ => __[[B] [B] [B]] [C] [C] [C]__ [A]
+        // Forward: __[A] [A] [A] [[B] [B] [B]]__ [C] => [C] __[A] [A] [A] [[B] [B] [B]]__
+        else if (
+          anchorTab.groupId === TAB_GROUP_ID_NONE &&
+          anchorTab.groupId !== focusTab.groupId &&
+          targetTab.groupId === TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            chrome.tabs.move(targetInfo.tabId, {
+              index: anchorInfo.tabIndex
+            })
+          )
+        }
+        // Backward: [A] __[B] [B] [B] [[C] [C]__ [...]] => __[B] [B] [B] [C] [C]__ [A] [[...]]
+        // Forward: [[...] __[A] [A]] [B] [B] [B]__ [C] => [[...]] [C] __[A] [A] [B] [B] [B]__
+        else if (
+          groupIdToSelPartition.get(anchorTab.groupId)[1].length > 0 &&
+          anchorTab.groupId !== focusTab.groupId &&
+          targetTab.groupId === TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            ungroupTabs(anchorInfo.tabIds),
+            chrome.tabs.move(targetInfo.tabId, {
+              index: anchorInfo.tabIndex
+            })
+          )
+        }
+        // Backward: [A] __[B] [B] [B] [[C] [C] [C]]__ => __[B] [B] [B] [[C] [C] [C]]__ [A]
+        // Forward: __[[A] [A] [A]] [B] [B] [B]__ [C] => [C] __[[A] [A] [A]] [B] [B] [B]__
+        else if (
+          groupIdToSelPartition.get(anchorTab.groupId)[1].length === 0 &&
+          anchorTab.groupId !== focusTab.groupId &&
+          targetTab.groupId === TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            chrome.tabs.move(targetInfo.tabId, {
+              index: anchorInfo.tabIndex
+            })
+          )
+        }
+        // Backward: [[A] __[B]] [C] [C]__ => [[A] __[B] [C] [C]__]
+        // Forward: __[A] [A] [[B]__ [C]] => [__[A] [A] [B]__ [C]]
+        else if (
+          targetTab.groupId !== anchorTab.groupId &&
+          targetTab.groupId === focusTab.groupId
+        ) {
+          movedTabs.push(
+            chrome.tabs.group({
+              tabIds: tabSelection.map(tab => tab.id),
+              groupId: targetTab.groupId
+            })
+          )
+        }
+        // Backward: [[A] __[B] [B] [B]__] => [__[B] [B] [B]__ [A]]
+        // Forward: [__[A] [A] [A]__ [B]] => [[B] __[A] [A] [A]__]
+        else if (
+          targetTab.groupId === anchorTab.groupId &&
+          targetTab.groupId === focusTab.groupId
+        ) {
+          movedTabs.push(
+            chrome.tabs.move(targetInfo.tabId, {
+              index: anchorInfo.tabIndex
+            })
+          )
+        }
+        // Backward: [[A]] __[B] [B] [B]__ => [[A] __[B] [B] [B]__]
+        // Forward: __[A] [A] [A]__ [[B]] => [__[A] [A] [A]__ [B]]
+        else if (
+          anchorTab.groupId === TAB_GROUP_ID_NONE &&
+          anchorTab.groupId === focusTab.groupId &&
+          collapsedInfo.get(targetTab.groupId) === false
+        ) {
+          movedTabs.push(
+            chrome.tabs.group({
+              tabIds: tabSelection.map(tab => tab.id),
+              groupId: targetTab.groupId
+            })
+          )
+        }
+        // Backward: [[...]] __[B] [B] [B]__ => __[B] [B] [B]__ [[...]]
+        // Forward: __[A] [A] [A]__ [[...]] => [[...]] __[A] [A] [A]__
+        else if (
+          anchorTab.groupId === TAB_GROUP_ID_NONE &&
+          anchorTab.groupId === focusTab.groupId &&
+          collapsedInfo.get(targetTab.groupId) === true
+        ) {
+          movedTabs.push(
+            moveGroupToTab(targetInfo.groupId, anchorInfo.tabId)
+          )
+        }
+        // Backward: [[A]] [__[B] [B]__ [...]] => [[A]] __[B] [B]__ [[...]]
+        // Forward: [[...] __[A] [A]__] [[B]] => [[...]] __[A] [A]__ [[B]]
+        else if (
+          groupIdToSelPartition.get(anchorTab.groupId)[1].length > 0 &&
+          anchorTab.groupId === focusTab.groupId &&
+          targetTab.groupId !== TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            ungroupTabs(tabSelection.map(getTabId))
+          )
+        }
+        // Backward: [[A]] __[[B] [B] [B]]__ => __[[B] [B] [B]]__ [[A]]
+        // Forward: __[[A] [A] [A]]__ [[B]] => [[B]] __[[A] [A] [A]]__
+        else if (
+          groupIdToSelPartition.get(anchorTab.groupId)[1].length === 0 &&
+          anchorTab.groupId === focusTab.groupId &&
+          targetTab.groupId !== TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            moveGroupToTab(targetInfo.groupId, anchorInfo.tabId)
+          )
+        }
+        // Backward: [[A]] __[[B] [B] [B]] [C] [C] [C]__ => __[[B] [B] [B]] [C] [C] [C]__ [[A]]
+        // Forward: __[A] [A] [A] [[B] [B] [B]]__ [[C]] => [[C]] __[A] [A] [A] [[B] [B] [B]]__
+        else if (
+          anchorTab.groupId === TAB_GROUP_ID_NONE &&
+          anchorTab.groupId !== focusTab.groupId &&
+          targetTab.groupId !== TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            moveGroupToTab(targetInfo.groupId, anchorInfo.tabId)
+          )
+        }
+        // Backward: [[A]] __[B] [B] [B] [[C] [C]__ [...]] => __[B] [B] [B] [C] [C]__ [[A]] [[...]]
+        // Forward: [[...] __[A] [A]] [B] [B] [B]__ [[C]] => [[...]] [[C]] __[A] [A] [B] [B] [B]__
+        else if (
+          groupIdToSelPartition.get(anchorTab.groupId)[1].length > 0 &&
+          anchorTab.groupId !== focusTab.groupId &&
+          targetTab.groupId !== TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            ungroupTabs(anchorInfo.tabIds),
+            moveGroupToTab(targetInfo.groupId, anchorInfo.tabId)
+          )
+        }
+        // Backward: [[A]] __[B] [B] [B] [[C] [C] [C]]__ => __[B] [B] [B] [[C] [C] [C]]__ [[A]]
+        // Forward: __[[A] [A] [A]] [B] [B] [B]__ [[C]] => [[C]] __[[A] [A] [A]] [B] [B] [B]__
+        else if (
+          anchorInfo.isInGroup &&
+          groupIdToSelPartition.get(anchorTab.groupId)[1].length === 0 &&
+          anchorTab.groupId !== focusTab.groupId &&
+          targetTab.groupId !== TAB_GROUP_ID_NONE
+        ) {
+          movedTabs.push(
+            moveGroupToTab(targetInfo.groupId, anchorInfo.tabId)
+          )
+        }
+      }
+    }
+  }
+  await Promise.all(movedTabs)
 }
 
-// Moves selected tabs to the far left.
-export async function moveTabFirst(context) {
-  await moveTabEdgeDirection(context, Direction.Backward)
+/**
+ * Moves selected tabs left.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function moveTabLeft(cx) {
+  await moveTabDirection(cx, Direction.Backward)
 }
 
-// Moves selected tabs to the far right.
-export async function moveTabLast(context) {
-  await moveTabEdgeDirection(context, Direction.Forward)
+/**
+ * Moves selected tabs right.
+ * Skips hidden tabs—the ones whose are in collapsed tab groups.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function moveTabRight(cx) {
+  await moveTabDirection(cx, Direction.Forward)
 }
 
-// Moves selected tabs to the specified window.
-async function moveTabsToWindow(context, windowId) {
+/**
+ * TODO: OK
+ * Moves selected tabs to the far left/right.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function moveTabEdgeDirection(cx, direction) {
+  let tabIndex, toOrdered
+  switch (direction) {
+    case Direction.Backward:
+      tabIndex = 0
+      toOrdered = list => list
+      break
+    case Direction.Forward:
+      tabIndex = -1
+      toOrdered = list => list.toReversed()
+      break
+  }
+
+  const tabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
+
+  const tabsByGroup = Map.groupBy(tabs, byGroup)
+
+  const startIndex = tabs.findIndex(tab => !tab.pinned)
+  const [pinnedTabs, otherTabs] = startIndex === -1
+    ? [tabs, []]
+    : [tabs.slice(0, startIndex), tabs.slice(startIndex)]
+
+  const tabPartition = chunk(otherTabs, byGroup).map(([groupId, tabs]) => {
+    const [selectedTabs, otherTabs] = partition(tabs, isSelected)
+    return [groupId, selectedTabs, otherTabs]
+  })
+
+  await Promise.all(
+    [].concat(
+      // Move pinned tabs.
+      moveTabs(toOrdered(pinnedTabs).filter(isSelected).map(getTabId), {
+        index: tabIndex
+      }),
+
+      // Move other tabs.
+      toOrdered(tabPartition).map(([groupId, selectedTabs, otherTabs]) => {
+        if (
+          groupId !== TAB_GROUP_ID_NONE &&
+          otherTabs.length === 0
+        ) {
+          // Move tab group to the far left/right.
+          // Handle “Cannot move the group to an index that is in the middle of pinned tabs” error.
+          return chrome.tabGroups.move(groupId, {
+            index: tabIndex === 0
+              ? pinnedTabs.length
+              : tabIndex
+          })
+        } else if (
+          groupId !== TAB_GROUP_ID_NONE &&
+          otherTabs.length > 0
+        ) {
+          // Move tabs in group to the far left/right.
+          return moveTabs(selectedTabs.map(getTabId), {
+            index: tabsByGroup.get(groupId).at(tabIndex).index
+          })
+        } else {
+          // Move tabs to the far left/right.
+          return moveTabs(selectedTabs.map(getTabId), {
+            index: tabIndex
+          })
+        }
+      })
+    )
+  )
+}
+
+/**
+ * Moves selected tabs to the far left.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function moveTabFirst(cx) {
+  await moveTabEdgeDirection(cx, Direction.Backward)
+}
+
+/**
+ * Moves selected tabs to the far right.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function moveTabLast(cx) {
+  await moveTabEdgeDirection(cx, Direction.Forward)
+}
+
+/**
+ * Moves selected tabs to the specified window.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function moveTabsToWindow(cx, windowId) {
   // Prevent moving tabs to the same window.
-  if (context.tab.windowId === windowId) {
+  if (cx.tab.windowId === windowId) {
     return
   }
 
-  const tabs = await getAllTabs(context)
+  const tabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
   const startIndex = tabs.findIndex(tab => !tab.pinned)
   const [pinnedTabs, otherTabs] = startIndex === -1
     ? [tabs, []]
@@ -992,53 +1918,84 @@ async function moveTabsToWindow(context, windowId) {
   const moveProperties = { windowId, index: -1 }
   const movedTabChunks = await Promise.all([
     // Move pinned tabs.
-    moveTabs(pinnedTabs.filter(isSelected), moveProperties).then(tabs => updateTabs(tabs, { pinned: true })),
+    moveTabs(pinnedTabs.filter(isSelected).map(tab => tab.id), moveProperties).then(tabs =>
+      Promise.all(
+        tabs.map((tab) => chrome.tabs.update(tab.id, { pinned: true }))
+      )
+    ),
 
     // Move other tabs.
     ...chunk(otherTabs, byGroup).map(([groupId, tabs]) => {
       const selectedTabs = tabs.filter(isSelected)
       // Only move tab group if fully selected.
       return groupId !== TAB_GROUP_ID_NONE && selectedTabs.length === tabs.length
-        ? chrome.tabGroups.move(groupId, moveProperties).then(tabGroup => chrome.tabs.query({ groupId }))
-        : moveTabs(selectedTabs, moveProperties)
+        ? chrome.tabGroups.move(groupId, moveProperties).then((tabGroup) =>
+            chrome.tabs.query({
+              groupId: tabGroup.groupId
+            })
+          )
+        : moveTabs(selectedTabs.map(tab => tab.id), moveProperties)
     })
   ])
 
   // Focus window and select tabs.
-  const activeTab = await chrome.tabs.get(context.tab.id)
+  const activeTab = await chrome.tabs.get(cx.tab.id)
   await chrome.windows.update(windowId, { focused: true })
-  await highlightTabs([activeTab].concat(...movedTabChunks))
+  const tabsToHighlight = [activeTab].concat(...movedTabChunks).map(tab => tab.index)
+  await chrome.tabs.highlight({ tabs: tabsToHighlight, windowId })
 }
 
-// Moves selected tabs to a new window.
-export async function moveTabNewWindow(context) {
+/**
+ * Moves selected tabs to a new window.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function moveTabNewWindow(cx) {
   // Create a new window
   // and keep a reference to the created tab (the New Tab page) in order to delete it later.
   const createdWindow = await chrome.windows.create()
   const createdTab = createdWindow.tabs[0]
 
   // Move selected tabs to the created window.
-  await moveTabsToWindow(context, createdWindow.id)
+  await moveTabsToWindow(cx, createdWindow.id)
   await chrome.tabs.remove(createdTab.id)
 }
 
-// Moves selected tabs to the previous open window, if any.
-export async function moveTabPreviousWindow(context) {
-  const previousWindow = await getOpenWindowRelative(context, -1)
-  await moveTabsToWindow(context, previousWindow.id)
+/**
+ * Moves selected tabs to the previous open window, if any.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function moveTabPreviousWindow(cx) {
+  const previousWindow = await getOpenWindowRelative(cx.tab.windowId, -1)
+  await moveTabsToWindow(cx, previousWindow.id)
 }
 
 // Select tabs -----------------------------------------------------------------
 
-// Deselects all other tabs.
-export async function selectTab(context) {
-  await highlightTabs([context.tab])
+/**
+ * Deselects all other tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function selectTab(cx) {
+  const { index: tabIndex, windowId } = cx.tab
+  await chrome.tabs.highlight({ tabs: [tabIndex], windowId })
 }
 
-// Selects the next/previous tab.
-async function selectTabDirection(context, direction) {
-  const currentTab = context.tab
-  const allTabs = await getAllTabs(context)
+/**
+ * Selects the next/previous tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function selectTabDirection(cx, direction) {
+  const { windowId } = cx.tab
+  const currentTab = cx.tab
+  const allTabs = await chrome.tabs.query({ windowId: cx.tab.windowId })
 
   // Shrink or expand selection, depending on the direction.
   let anchorIndex, focusIndex, focusOffset
@@ -1058,10 +2015,10 @@ async function selectTabDirection(context, direction) {
   }
 
   // Only iterate selected tabs.
-  const tabsToHighlight = [currentTab]
-  const tabSelection = chunk(allTabs, (tab) => tab.highlighted)
-  for (let index = tabSelection[0][0] ? 0 : 1; index < tabSelection.length; index += 2) {
-    const selectedTabs = tabSelection[index][1]
+  const tabsToHighlight = [currentTab.index]
+  const tabPartition = chunk(allTabs, (tab) => tab.highlighted)
+  for (let index = tabPartition[0][0] ? 0 : 1; index < tabPartition.length; index += 2) {
+    const selectedTabs = tabPartition[index][1]
     const anchorTabIndex = selectedTabs.at(anchorIndex).index
     const focusTabIndex = clamp(selectedTabs.at(focusIndex).index + focusOffset, 0, allTabs.length - 1)
 
@@ -1073,82 +2030,140 @@ async function selectTabDirection(context, direction) {
 
     // Create a new slice which represents the range of selected tabs.
     const tabs = allTabs.slice(startIndex, endIndex + 1)
-    tabsToHighlight.push(...tabs)
+    const tabIndices = tabs.map(tab => tab.index)
+    tabsToHighlight.push(...tabIndices)
   }
   // Update selection ranges.
-  await highlightTabs(tabsToHighlight)
+  await chrome.tabs.highlight({ tabs: tabsToHighlight, windowId })
 }
 
-// Selects the previous tab.
-export async function selectPreviousTab(context) {
-  await selectTabDirection(context, Direction.Backward)
+/**
+ * Selects the previous tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function selectPreviousTab(cx) {
+  await selectTabDirection(cx, Direction.Backward)
 }
 
-// Selects the next tab.
-export async function selectNextTab(context) {
-  await selectTabDirection(context, Direction.Forward)
+/**
+ * Selects the next tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function selectNextTab(cx) {
+  await selectTabDirection(cx, Direction.Forward)
 }
 
-// Selects related tabs.
-export async function selectRelatedTabs(context) {
+/**
+ * Selects related tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function selectRelatedTabs(cx) {
+  const { windowId } = cx.tab
   const isSelected = tab => tab.highlighted
   const byGroup = tab => tab.pinned || tab.groupId
   const byDomain = tab => new URL(tab.url).hostname
 
   // Partition tabs and select related tabs for each group.
-  const allTabs = await getAllTabs(context)
-  const tabsToHighlight = [context.tab]
+  const allTabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
+  const tabsToHighlight = [cx.tab.index]
   for (const [_, tabPartition] of chunk(allTabs, byGroup)) {
     for (const [_, tabs] of Map.groupBy(tabPartition, byDomain)) {
       if (tabs.some(isSelected)) {
-        tabsToHighlight.push(...tabs)
+        const tabIndices = tabs.map(tab => tab.index)
+        tabsToHighlight.push(...tabIndices)
       }
     }
   }
-  await highlightTabs(tabsToHighlight)
+  await chrome.tabs.highlight({ tabs: tabsToHighlight, windowId })
 }
 
-// Selects tabs in group.
-// Note: Can be used for ungrouped tabs.
-export async function selectTabsInGroup(context) {
+/**
+ * Selects tabs in group.
+ * Note: Can be used for ungrouped tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function selectTabsInGroup(cx) {
+  const { windowId } = cx.tab
   const isSelected = tab => tab.highlighted
   const byGroup = tab => tab.pinned || tab.groupId
 
   // Partition tabs and extend each selection to the whole group.
-  const allTabs = await getAllTabs(context)
-  const tabsToHighlight = [context.tab]
+  const allTabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
+  const tabsToHighlight = [cx.tab.index]
   for (const [_, tabs] of chunk(allTabs, byGroup)) {
     if (tabs.some(isSelected)) {
-      tabsToHighlight.push(...tabs)
+      const tabIndices = tabs.map(tab => tab.index)
+      tabsToHighlight.push(...tabIndices)
     }
   }
-  await highlightTabs(tabsToHighlight)
+  await chrome.tabs.highlight({ tabs: tabsToHighlight, windowId })
 }
 
-// Selects all tabs.
-export async function selectAllTabs(context) {
-  const tabs = await getAllTabs(context)
-  await highlightTabs([context.tab, ...tabs])
+/**
+ * Selects all tabs.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function selectAllTabs(cx) {
+  const { windowId } = cx.tab
+  const tabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
+  const tabsToHighlight = [cx.tab, ...tabs].map(tab => tab.index)
+  await chrome.tabs.highlight({ tabs: tabsToHighlight, windowId })
 }
 
-// Selects tabs to the right.
-// Starts from the leftmost selected tab.
-export async function selectRightTabs(context) {
-  const tabs = await getAllTabs(context)
+/**
+ * Selects tabs to the right.
+ * Starts from the leftmost selected tab.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function selectRightTabs(cx) {
+  const { windowId } = cx.tab
+  const tabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
   const startIndex = tabs.findIndex(tab => tab.highlighted)
   const rightTabs = tabs.slice(startIndex)
-  await highlightTabs([context.tab, ...rightTabs])
+  const tabsToHighlight = [cx.tab, ...rightTabs].map(tab => tab.index)
+  await chrome.tabs.highlight({ tabs: tabsToHighlight, windowId })
 }
 
-// Flips tab selection.
-// Note: The current tab might be placed between the anchor and focus tabs.
-// Ensures that the selection faces forward in this case.
-export async function flipTabSelection(context) {
-  const allTabs = await getAllTabs(context)
-  const selectedTabs = await getSelectedTabs(context)
+/**
+ * Flips tab selection.
+ * Note: The current tab might be placed between the anchor and focus tabs.
+ * Ensures that the selection faces forward in this case.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function flipTabSelection(cx) {
+  const { windowId } = cx.tab
+  const allTabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
+  const selectedTabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
 
   // Determine the direction to flip selections.
-  let tabIndex = context.tab.index
+  let tabIndex = cx.tab.index
   let focusIndex = tabIndex
   // Ensure that the selection faces forward.
   while (focusIndex < allTabs.length - 1 && allTabs[focusIndex + 1].highlighted) {
@@ -1162,17 +2177,25 @@ export async function flipTabSelection(context) {
   }
   tabIndex = focusIndex
 
-  const tabToActivate = allTabs[tabIndex]
-  await highlightTabs([tabToActivate, ...selectedTabs])
+  const tabsToHighlight = [tabIndex].concat(selectedTabs.map(tab => tab.index))
+  await chrome.tabs.highlight({ tabs: tabsToHighlight, windowId })
 }
 
 // Bookmarks -------------------------------------------------------------------
 
-// Saves selected tabs as bookmarks.
-export async function bookmarkTab(context) {
+/**
+ * Saves selected tabs as bookmarks.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function bookmarkTab(cx) {
   const byURL = item => item.url
 
-  const tabs = await getSelectedTabs(context)
+  const tabs = await chrome.tabs.query({
+    highlighted: true,
+    windowId: cx.tab.windowId
+  })
   const bookmarks = await chrome.bookmarks.search({})
 
   const tabsByURL = Map.groupBy(tabs, byURL)
@@ -1192,12 +2215,21 @@ export async function bookmarkTab(context) {
   await sendNotification(`${createdBookmarks.length} bookmarks added`)
 }
 
-// Saves the current session as bookmarks.
-export async function bookmarkSession(context) {
+/**
+ * Saves the current session as bookmarks.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function bookmarkSession(cx) {
   const byGroup = tab => tab.groupId
 
-  const allTabs = await getAllTabs(context)
-  const allTabGroups = await getAllTabGroups(context)
+  const allTabs = await chrome.tabs.query({
+    windowId: cx.tab.windowId
+  })
+  const allTabGroups = await chrome.tabGroups.query({
+    windowId: cx.tab.windowId
+  })
 
   const dateString = getISODateString(new Date)
   const baseFolder = await chrome.bookmarks.create({ title: `Session ${dateString}` })
@@ -1226,30 +2258,44 @@ export async function bookmarkSession(context) {
   }
 
   // Show result in folder.
-  await openChromePage(context, `chrome://bookmarks/?id=${baseFolder.id}`)
+  await openChromePage(cx, `chrome://bookmarks/?id=${baseFolder.id}`)
   await sendNotification('Session bookmarked')
 }
 
 // Folders ---------------------------------------------------------------------
 
-// Opens the Downloads folder.
-export async function openDownloadsFolder(context) {
+/**
+ * Opens the Downloads folder.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openDownloadsFolder(cx) {
   await chrome.downloads.showDefaultFolder()
 }
 
 // Chrome URLs -----------------------------------------------------------------
 
-// Opens a Chrome page at the URL specified.
-// Note: Chrome attempts to focus an existing tab or create a new tab,
-// using an existing slot—the New Tab page—if possible.
-async function openChromePage(context, navigateURL) {
+/**
+ * Opens a Chrome page at the URL specified.
+ * Note: Chrome attempts to focus an existing tab or create a new tab,
+ * using an existing slot—the New Tab page—if possible.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+async function openChromePage(cx, navigateURL) {
   const baseURL = new URL('/', navigateURL)
   // Search a tab by its URL.
-  const [matchingTab] = await chrome.tabs.query({ url: baseURL + '*', windowId: context.tab.windowId })
+  const [matchingTab] = await chrome.tabs.query({
+    url: baseURL + '*',
+    windowId: cx.tab.windowId
+  })
 
   if (matchingTab) {
     // Switch to the tab.
-    await focusTab(matchingTab)
+    await chrome.tabs.update(matchingTab.id, { active: true })
+    await chrome.windows.update(matchingTab.windowId, { focused: true })
 
     // Refresh URL?
     // Only if the URL to navigate the tab to does not match.
@@ -1259,55 +2305,123 @@ async function openChromePage(context, navigateURL) {
   } else {
     // Is the current tab a new tab?
     // Use the New Tab page as a placeholder, instead of opening a new tab.
-    if (context.tab.url === 'chrome://newtab/') {
-      await chrome.tabs.update(context.tab.id, { url: navigateURL })
+    if (cx.tab.url === 'chrome://newtab/') {
+      await chrome.tabs.update(cx.tab.id, { url: navigateURL })
     } else {
-      await chrome.tabs.create({ url: navigateURL, active: true, openerTabId: context.tab.id })
+      await chrome.tabs.create({ url: navigateURL, active: true, openerTabId: cx.tab.id })
     }
   }
 }
 
-// Opens the History page.
-export async function openHistoryPage(context) {
-  await openChromePage(context, 'chrome://history/')
+/**
+ * Opens the History page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openHistoryPage(cx) {
+  await openChromePage(cx, 'chrome://history/')
 }
 
-// Opens the Downloads page.
-export async function openDownloadsPage(context) {
-  await openChromePage(context, 'chrome://downloads/')
+/**
+ * Opens the Downloads page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openDownloadsPage(cx) {
+  await openChromePage(cx, 'chrome://downloads/')
 }
 
-// Opens the Bookmarks page.
-export async function openBookmarksPage(context) {
-  await openChromePage(context, 'chrome://bookmarks/')
+/**
+ * Opens the Bookmarks page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openBookmarksPage(cx) {
+  await openChromePage(cx, 'chrome://bookmarks/')
 }
 
-// Opens the Settings page.
-export async function openSettingsPage(context) {
-  await openChromePage(context, 'chrome://settings/')
+/**
+ * Opens the Settings page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openSettingsPage(cx) {
+  await openChromePage(cx, 'chrome://settings/')
 }
 
-// Opens the Passwords page.
-export async function openPasswordsPage(context) {
-  await openChromePage(context, 'chrome://password-manager/passwords')
+/**
+ * Opens the Passwords page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openPasswordsPage(cx) {
+  await openChromePage(cx, 'chrome://password-manager/passwords')
 }
 
-// Opens the Search engines page.
-export async function openSearchEnginesPage(context) {
-  await openChromePage(context, 'chrome://settings/searchEngines')
+/**
+ * Opens the Search engines page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openSearchEnginesPage(cx) {
+  await openChromePage(cx, 'chrome://settings/searchEngines')
 }
 
-// Opens the Extensions page.
-export async function openExtensionsPage(context) {
-  await openChromePage(context, 'chrome://extensions/')
+/**
+ * Opens the Extensions page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openExtensionsPage(cx) {
+  await openChromePage(cx, 'chrome://extensions/')
 }
 
-// Opens the Extensions > Keyboard shortcuts page.
-export async function openShortcutsPage(context) {
-  await openChromePage(context, 'chrome://extensions/shortcuts')
+/**
+ * Opens the Extensions > Keyboard shortcuts page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openShortcutsPage(cx) {
+  await openChromePage(cx, 'chrome://extensions/shortcuts')
 }
 
-// Opens the Experiments page.
-export async function openExperimentsPage(context) {
-  await openChromePage(context, 'chrome://flags/')
+/**
+ * Opens the Experiments page.
+ *
+ * @param {Context} cx
+ * @returns {Promise<void>}
+ */
+export async function openExperimentsPage(cx) {
+  await openChromePage(cx, 'chrome://flags/')
+}
+
+const getTabId = (tab) => tab.id
+const isSelected = (tab) => tab.highlighted
+const byGroup = (tab) => tab.groupId
+
+/**
+ * TODO: OK
+ * Moves specified tabs.
+ * Returns a `Promise` with details about the moved tabs.
+ *
+ * Reference: https://developer.chrome.com/docs/extensions/reference/tabs/#method-move
+ *
+ * @param {number[]} tabIds
+ * @param {object} moveProperties
+ * @returns {Promise<chrome.tabs.Tab[]>}
+ */
+async function moveTabs(tabIds, moveProperties) {
+  return Promise.all(
+    tabIds.map((tabId) =>
+      chrome.tabs.move(tabId, moveProperties)
+    )
+  )
 }

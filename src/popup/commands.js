@@ -8,7 +8,21 @@
 // - `window`: a reference to the popup window,
 // - `port`: the channel to communicate with the service worker.
 
-// Creates a new function that, when called, sends a message to the service worker.
+/**
+ * @typedef {object} PopupCommandContext
+ * @property {chrome.tabs.Tab} tab
+ * @property {Window} window
+ * @property {chrome.runtime.Port} port
+ */
+
+/**
+ * Creates a new function that, when called, sends a message to the service worker.
+ *
+ * @param {string} commandName
+ * @param {boolean} passingMode
+ * @param {boolean} stickyWindow
+ * @returns {(context: PopupCommandContext) => void}
+ */
 function message(commandName, passingMode, stickyWindow) {
   return (context) => {
     const { tab, port } = context
@@ -174,8 +188,14 @@ export const openExperimentsPage = message('openExperimentsPage')
 
 // Popup -----------------------------------------------------------------------
 
-// Closes the popup window.
-// Reference: https://developer.mozilla.org/en-US/docs/Web/API/Window/close
+/**
+ * Closes the popup window.
+ *
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/API/Window/close
+ *
+ * @param {PopupCommandContext} context
+ * @returns {void}
+ */
 export function closePopup(context) {
   context.window.close()
 }

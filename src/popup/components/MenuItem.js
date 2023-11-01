@@ -28,6 +28,10 @@ class MenuItem extends HTMLElement {
     this.tabIndex = 0
   }
 
+  /**
+   * @param {KeyboardEvent} keyboardEvent
+   * @returns {void}
+   */
   addKeyboardShortcut(keyboardEvent) {
     const keyboardShortcutElement = document.createElement('keyboard-shortcut')
     keyboardShortcutElement.slot = 'shortcut'
