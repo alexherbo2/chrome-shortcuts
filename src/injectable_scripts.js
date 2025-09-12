@@ -242,3 +242,51 @@ export function cancelAnimationFrames() {
 export function prompt(message, defaultValue) {
   return window.prompt(message, defaultValue)
 }
+
+/**
+ * Turns picture-in-picture mode on or off.
+ * Uses the most relevant video on the page.
+ *
+ * IMPORTANT: Entering picture-in-picture mode requires a user gesture.
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/API/Picture-in-Picture_API
+ *
+ * @returns {Promise<void>}
+ */
+export async function togglePictureInPicture() {
+  if (document.pictureInPictureElement) {
+    document.exitPictureInPicture()
+  } else {
+    const videoElements = Array.from(getAllElements(document))
+      .filter((element) =>
+        element.localName === 'video' &&
+        element.readyState !== HTMLMediaElement.HAVE_NOTHING &&
+        element.checkVisibility({
+          opacityProperty: true,
+          visibilityProperty: true,
+          contentVisibilityAuto: true,
+        })
+      )
+      .sort((videoElement, otherVideoElement) =>
+        videoElement.paused - otherVideoElement.paused ||
+        videoElement.muted - otherVideoElement.muted
+      )
+
+    if (videoElements.length > 0) {
+      const videoElement = videoElements[0]
+
+      await videoElement.requestPictureInPicture()
+      videoElement.addEventListener(
+        'leavepictureinpicture',
+        () => {
+          if (!document.hasFocus()) {
+            videoElement.pause()
+          }
+        },
+        {
+          once: true,
+        },
+      )
+    }
+  }
+}

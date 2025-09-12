@@ -113,6 +113,9 @@
   "toggleFullScreenCommandDescription": {
     "message": "Gérer les fenêtres · Activer ou désactiver le mode plein écran"
   },
+  "togglePictureInPictureCommandDescription": {
+    "message": "Gérer les fenêtres · Activer ou désactiver le mode picture-in-picture"
+  },
   "openNewTabCommandDescription": {
     "message": "Créer des onglets · Ouvrir un nouvel onglet"
   },

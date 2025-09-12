@@ -113,6 +113,9 @@
   "toggleFullScreenCommandDescription": {
     "message": "Window state · Turn full-screen mode on or off"
   },
+  "togglePictureInPictureCommandDescription": {
+    "message": "Window state · Turn picture-in-picture mode on or off"
+  },
   "openNewTabCommandDescription": {
     "message": "Create tabs · Open and activate a new tab"
   },
