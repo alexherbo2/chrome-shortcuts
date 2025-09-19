@@ -208,6 +208,8 @@ in the “Options” page—Right-click the Shortcuts toolbar button and select 
     { "command": "closeCommandPalette", "key": { "ctrlKey": true, "code": "KeyC" } }
   ],
   "pageBindings": [
+  ],
+  "popupStyleSheet": [
   ]
 }
 ```
@@ -234,6 +236,51 @@ There, you’ll see a checkbox that allows you to enable “Vim mode”.
   "pageBindings": [
     { "command": "openPopup", "key": { "code": "Escape" } },
     { "command": "sendEscapeKey", "key": { "shiftKey": true, "code": "Escape" } }
+  ]
+}
+```
+
+</details>
+
+### Appearance
+
+You can customize the extension’s popup appearance with CSS overrides.
+Vous pouvez personnaliser l’apparence du menu de l’extension grâce à des surcharges CSS.
+
+<details>
+
+<summary>Example configuration</summary>
+
+``` json
+{
+  "popupStyleSheet": [
+    ":root {",
+    "--background-color: light-dark(white, black);",
+    "--foreground-color: light-dark(black, white);",
+    "--scrollbar-thumb-color: light-dark(lightgray, dimgray);",
+    "--scrollbar-track-color: light-dark(white, black);",
+    "--text-field-background-color: light-dark(whitesmoke, var(--light-black-color));",
+    "--placeholder-text-color: light-dark(silver, gray);",
+    "--primary-button-text-color: light-dark(white, white);",
+    "--primary-button-background-color: light-dark(royalblue, royalblue);",
+    "--primary-button-active-background-color: light-dark(lightblue, lightblue);",
+    "--selected-text-color: light-dark(white, white);",
+    "--selected-text-background-color: light-dark(royalblue, royalblue);",
+    "--control-accent-color: light-dark(royalblue, royalblue);",
+    "--keyboard-focus-indicator-color: light-dark(royalblue, royalblue);",
+    "--label-color: light-dark(black, white);",
+    "--secondary-label-color: light-dark(black, white);",
+    "--tertiary-label-color: light-dark(silver, gray);",
+    "--disabled-control-text-color: light-dark(silver, gray);",
+    "--separator-color: light-dark(lightgray, var(--light-black-color));",
+    "--shadow-color: light-dark(lightgray, black);",
+    "--popover-background-color: light-dark(white, black);",
+    "--popover-text-color: light-dark(black, white);",
+    "--popover-border-color: light-dark(lightgray, dimgray);",
+    "--tag-pill-background-color: light-dark(white, black);",
+    "--tag-pill-text-color: light-dark(royalblue, powderblue);",
+    "--light-black-color: oklch(from black calc(l + 0.3) c h);",
+    "}"
   ]
 }
 ```

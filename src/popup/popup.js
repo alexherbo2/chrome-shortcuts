@@ -61,6 +61,7 @@ port.onMessage.addListener((message) => {
     case 'init':
       render({
         commandBindings: message.commandBindings,
+        popupStyleSheet: message.popupStyleSheet,
         isEnabled: message.isEnabled,
       })
       commandPalette.render({
@@ -100,14 +101,52 @@ port.onMessage.addListener((message) => {
 /**
  * Handles the popup rendering.
  *
- * @param {{ commandBindings: KeyboardMapping[], isEnabled: boolean }} options
+ * @typedef {object} RenderOptions
+ * @property {KeyboardMapping[]} commandBindings
+ * @property {string} popupStyleSheet
+ * @property {boolean} isEnabled
+ *
+ * @param {RenderOptions} renderOptions
  * @returns {void}
  */
-function render({ commandBindings, isEnabled }) {
+function render({ commandBindings, popupStyleSheet, isEnabled }) {
   const isDisabled = (menuItemElement) => (
     !isEnabled &&
     menuItemElement.matches(SCRIPTING_SELECTOR)
   )
+
+  const stylesheet = new CSSStyleSheet()
+  // stylesheet.replaceSync(popupStyleSheet)
+  stylesheet.replaceSync(`
+:root {
+--background-color: light-dark(white, black);
+--foreground-color: light-dark(black, white);
+--scrollbar-thumb-color: light-dark(lightgray, dimgray);
+--scrollbar-track-color: light-dark(white, black);
+--text-field-background-color: light-dark(whitesmoke, var(--light-black-color));
+--placeholder-text-color: light-dark(silver, gray);
+--primary-button-text-color: light-dark(white, white);
+--primary-button-background-color: light-dark(royalblue, royalblue);
+--primary-button-active-background-color: light-dark(lightblue, lightblue);
+--selected-text-color: light-dark(white, white);
+--selected-text-background-color: light-dark(royalblue, royalblue);
+--control-accent-color: light-dark(royalblue, royalblue);
+--keyboard-focus-indicator-color: light-dark(royalblue, royalblue);
+--label-color: light-dark(black, white);
+--secondary-label-color: light-dark(black, white);
+--tertiary-label-color: light-dark(silver, gray);
+--disabled-control-text-color: light-dark(silver, gray);
+--separator-color: light-dark(lightgray, var(--light-black-color));
+--shadow-color: light-dark(lightgray, black);
+--popover-background-color: light-dark(white, black);
+--popover-text-color: light-dark(black, white);
+--popover-border-color: light-dark(lightgray, dimgray);
+--tag-pill-background-color: light-dark(white, black);
+--tag-pill-text-color: light-dark(royalblue, powderblue);
+--light-black-color: oklch(from black calc(l + 0.3) c h);
+}
+  `)
+  document.adoptedStyleSheets.push(stylesheet)
 
   for (const { key, command } of commandBindings) {
     if (menuCommands.has(command)) {

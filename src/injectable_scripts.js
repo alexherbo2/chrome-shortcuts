@@ -333,6 +333,7 @@ export async function togglePictureInPicture() {
         )
         buttonElement.focus({
           preventScroll: true,
+          focusVisible: true,
         })
       }
     }
