@@ -446,8 +446,7 @@ function onInstalled(details) {
  * @returns {Promise<void>}
  */
 async function onInstall() {
-  const defaults = await optionsWorker.getDefaults()
-  await chrome.storage.sync.set(defaults)
+  await chrome.storage.sync.set(optionsWorker.defaults)
   createMenuItems()
   await Promise.all([
     setChromeCommandBindings(),
@@ -470,8 +469,7 @@ async function onUpdate(previousVersion) {
   if (
     versionCompare(previousVersion, '0.18.0') < 0
   ) {
-    const defaults = await optionsWorker.getDefaults()
-    await chrome.storage.sync.set(defaults)
+    await chrome.storage.sync.set(optionsWorker.defaults)
     createMenuItems()
     await Promise.all([
       setChromeCommandBindings(),

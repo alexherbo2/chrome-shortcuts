@@ -4,35 +4,15 @@
 // Service workers: https://developer.chrome.com/docs/extensions/develop/concepts/service-workers
 // Long-lived connections: https://developer.chrome.com/docs/extensions/develop/concepts/messaging#connect
 
+import defaults from '../config.json' {
+  type: 'json'
+}
+
+import vimDefaults from '../vim_config.json' {
+  type: 'json'
+}
+
 const KEEP_ALIVE_INTERVAL = 29000
-
-/**
- * Retrieves the default config.
- *
- * @returns {Promise<object>}
- */
-async function getDefaults() {
-  return (
-    fetch('config.json')
-      .then((response) =>
-        response.json()
-      )
-  )
-}
-
-/**
- * Retrieves Vim’s defaults.
- *
- * @returns {Promise<object>}
- */
-async function getVimDefaults() {
-  return (
-    fetch('vim_config.json')
-      .then((response) =>
-        response.json()
-      )
-  )
-}
 
 /**
  * List of active ports.
@@ -153,7 +133,6 @@ async function saveOptions(partialOptions) {
  * @returns {Promise<void>}
  */
 async function resetOptions() {
-  const defaults = await getDefaults()
   await chrome.storage.sync.clear()
   await chrome.storage.sync.set(defaults)
 }
@@ -164,7 +143,6 @@ async function resetOptions() {
  * @returns {Promise<void>}
  */
 async function enableVimMode() {
-  const vimDefaults = await getVimDefaults()
   await chrome.storage.sync.set(vimDefaults)
 }
 
@@ -210,4 +188,4 @@ async function updateOptionsPagesAfterOptionsChange() {
   }
 }
 
-export default { getDefaults, onConnect }
+export default { defaults, onConnect }
