@@ -165,6 +165,7 @@ main {
 
 input {
   background-color: var(--text-field-background-color);
+  color: var(--foreground-color);
   caret-color: var(--control-accent-color);
   margin: 0.3rem 0.6rem;
   padding: 0.3rem 0.6rem;
