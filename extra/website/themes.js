@@ -10,6 +10,10 @@ import classicTheme from './classic_theme.json' with {
   type: 'json'
 }
 
+import theWorldTheme from './the_world_theme.json' with {
+  type: 'json'
+}
+
 const themeRadioButtons = document.querySelectorAll(`
   input[type="radio"][name="theme"]
 `)
@@ -28,6 +32,14 @@ for (const themeRadioButton of themeRadioButtons) {
       case 'classic':
         sendThemeSyncMessage(
           classicTheme.popupStyleSheet
+        ).catch(
+          showThemeSyncError
+        )
+        break
+
+      case 'the-world':
+        sendThemeSyncMessage(
+          theWorldTheme.popupStyleSheet
         ).catch(
           showThemeSyncError
         )
