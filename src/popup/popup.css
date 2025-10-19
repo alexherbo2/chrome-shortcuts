@@ -52,6 +52,7 @@
     --scrollbar-thumb-color: var(--aqua-gray-3-color);
     --scrollbar-track-color: var(--aqua-gray-6-color);
     --text-field-background-color: var(--aqua-gray-5-color);
+    --text-field-border-color: transparent;
     --placeholder-text-color: #00000040;
     --primary-button-text-color: white;
     --primary-button-background-color: var(--dark-blue-color);
@@ -81,6 +82,7 @@
     --scrollbar-thumb-color: var(--dark-gray-2-color);
     --scrollbar-track-color: var(--dark-gray-5-color);
     --text-field-background-color: var(--dark-gray-4-color);
+    --text-field-border-color: transparent;
     --placeholder-text-color: #ffffff40;
     --primary-button-text-color: white;
     --primary-button-background-color: var(--aqua-blue-color);
@@ -162,11 +164,11 @@ main {
 }
 
 input {
-  border: none;
   background-color: var(--text-field-background-color);
   caret-color: var(--control-accent-color);
   margin: 0.3rem 0.6rem;
   padding: 0.3rem 0.6rem;
+  border: 1px solid var(--text-field-border-color);
   border-radius: 0.3rem;
 }
 

@@ -6,6 +6,7 @@
     "--scrollbar-thumb-color: light-dark(lightgray, dimgray);",
     "--scrollbar-track-color: light-dark(white, black);",
     "--text-field-background-color: light-dark(whitesmoke, var(--light-black-color));",
+    "--text-field-border-color: light-dark(transparent, transparent);",
     "--placeholder-text-color: light-dark(silver, gray);",
     "--primary-button-text-color: light-dark(white, white);",
     "--primary-button-background-color: light-dark(royalblue, royalblue);",

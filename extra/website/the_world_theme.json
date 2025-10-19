@@ -42,9 +42,6 @@
     "background-color: var(--background-image-color);",
     "mask: var(--background-image) center/contain;",
     "z-index: -1;",
-    "}",
-    "input {",
-    "outline: 1px solid var(--text-field-border-color);",
     "}"
   ]
 }
