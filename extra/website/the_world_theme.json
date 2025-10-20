@@ -4,7 +4,7 @@
     "--background-color: light-dark(var(--light-yellow-color), oklch(from black l c h));",
     "--foreground-color: light-dark(black, white);",
     "--background-image: url(\"https://i.imgur.com/AfIDTcl.png\");",
-    "--background-image-color: light-dark(oklch(from var(--light-black-color) l c h / 0.1), oklch(from var(--light-yellow-color) l c h / 0.1));",
+    "--background-image-color: light-dark(oklch(from var(--light-black-color) l c h / 0.1), oklch(from var(--light-yellow-color) l c h / 0.15));",
     "--scrollbar-thumb-color: light-dark(var(--dark-yellow-color), var(--dark-yellow-color));",
     "--scrollbar-track-color: light-dark(transparent, transparent);",
     "--text-field-background-color: light-dark(oklch(from whitesmoke calc(l - 0.05) c h / 0.9), oklch(from var(--light-black-color) calc(l + 0.07) c h / 0.9));",
