@@ -301,16 +301,11 @@ keyboard-shortcut + keyboard-shortcut::before {
 }
 
 suggestion-item::part(label) {
+  display: inline-block;
   padding: 0.1em 0.2em;
-  padding-inline-end: 0;
   border-radius: 0.3em;
   background-color: var(--tag-pill-background-color);
   color: var(--tag-pill-text-color);
-}
-
-suggestion-item::part(title)::before {
-  content: " · ";
-  margin-inline-start: 0.2rem;
 }
 
 suggestion-item::part(domain) {

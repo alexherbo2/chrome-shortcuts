@@ -51,7 +51,7 @@ class SuggestionItem extends HTMLElement {
     domainElement.slot = 'domain'
     domainElement.textContent = this.dataset.domain
 
-    this.append(labelElement, ' ', titleElement, ' ', domainElement)
+    this.append(labelElement, titleElement, domainElement)
   }
 }
 
