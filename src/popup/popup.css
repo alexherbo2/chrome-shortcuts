@@ -70,8 +70,8 @@
     --popover-background-color: var(--aqua-gray-6-color);
     --popover-text-color: #000000d9;
     --popover-border-color: var(--aqua-gray-5-color);
-    --tag-pill-background-color: #e8f0fe66;
-    --tag-pill-text-color: #174ea6;
+    --tag-pill-background-color: var(--aqua-blue-color);
+    --tag-pill-text-color: white;
   }
 }
 
@@ -100,8 +100,8 @@
     --popover-background-color: var(--dark-gray-5-color);
     --popover-text-color: #ffffffd9;
     --popover-border-color: var(--dark-gray-4-color);
-    --tag-pill-background-color: #2d333b;
-    --tag-pill-text-color: #c5d1de;
+    --tag-pill-background-color: var(--dark-blue-color);
+    --tag-pill-text-color: white;
   }
 }
 
