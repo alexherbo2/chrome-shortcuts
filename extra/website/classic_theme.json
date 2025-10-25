@@ -19,7 +19,7 @@
     "--secondary-label-color: light-dark(black, white);",
     "--tertiary-label-color: light-dark(silver, gray);",
     "--disabled-control-text-color: light-dark(silver, gray);",
-    "--separator-color: light-dark(lightgray, var(--light-black-color));",
+    "--separator-color: light-dark(var(--light-gray-color), var(--light-black-color));",
     "--shadow-color: light-dark(lightgray, black);",
     "--popover-background-color: light-dark(white, black);",
     "--popover-text-color: light-dark(black, white);",
@@ -27,6 +27,7 @@
     "--tag-pill-background-color: light-dark(royalblue, royalblue);",
     "--tag-pill-text-color: light-dark(white, white);",
     "--light-black-color: oklch(from black calc(l + 0.3) c h);",
+    "--light-gray-color: oklch(from lightgray calc(l + 0.05) c h);",
     "--light-blue-color: oklch(from royalblue calc(l + 0.05) c h);",
     "--dark-blue-color: oklch(from royalblue calc(l - 0.05) c h);",
     "}"
