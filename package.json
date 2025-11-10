@@ -1,5 +1,9 @@
 {
+  "type": "module",
   "devDependencies": {
-    "@types/chrome": "^0.0.323"
+    "@types/chrome": "^0.1.29"
+  },
+  "dependencies": {
+    "puppeteer": "^24.30.0"
   }
 }
