@@ -1617,17 +1617,13 @@ export async function toggleCollapseTabGroups(cx) {
 export async function toggleMuteTab(cx) {
   const tabs = await chrome.tabs.query({
     highlighted: true,
-    windowId: cx.tab.windowId
+    windowId: cx.tab.windowId,
   })
-
-  const someTabsNotMuted = tabs.some(
-    (tab) => !tab.mutedInfo.muted
-  )
 
   await Promise.all(
     tabs.map((tab) =>
       chrome.tabs.update(tab.id, {
-        muted: someTabsNotMuted
+        muted: !cx.tab.mutedInfo.muted,
       })
     )
   )
