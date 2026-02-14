@@ -2316,7 +2316,125 @@ export async function activateEighthLastActiveTab(cx) {
  * @returns {Promise<void>}
  */
 export async function activateNinthLastActiveTab(cx) {
-  await activateMostRecentTabAtIndex(cx, 8)
+  await closeInactiveTabsForLast15Minutes(cx)
+}
+
+/**
+ * Closes inactive tabs.
+ *
+ * @param {CommandContext} cx
+ * @param {number} timestamp
+ * @returns {Promise<void>}
+ */
+async function closeInactiveTabs(cx, timestamp) {
+  const tabs = await chrome.tabs.query({
+    active: false,
+    pinned: false,
+    windowId: cx.tab.windowId,
+  })
+  const tabsByGroup = Map.groupBy(tabs, _groupId)
+  const tabIds = []
+  const groupIds = []
+  const date = new Date
+  for (const [groupId, tabs] of tabsByGroup) {
+    if (groupId === TAB_GROUP_ID_NONE) {
+      for (const tab of tabs) {
+        if (date - tab.lastAccessed > timestamp) {
+          tabIds.push(tab.id)
+        }
+      }
+    } else {
+      if (
+        tabs.every((tab) =>
+          date - tab.lastAccessed > timestamp
+        )
+      ) {
+        groupIds.push(groupId)
+      }
+    }
+  }
+  if (
+    tabIds.length > 0 ||
+    groupIds.length > 0
+  ) {
+    const createdWindow = await chrome.windows.create({
+      focused: false,
+      incognito: cx.tab.incognito,
+    })
+    const moveProperties = {
+      windowId: createdWindow.id,
+      index: -1,
+    }
+    if (tabIds.length > 0) {
+      await chrome.tabs.move(
+        tabIds,
+        moveProperties,
+      )
+    }
+    if (groupIds.length > 0) {
+      await Promise.all(
+        groupIds.map((groupId) =>
+          chrome.tabGroups.move(
+            groupId,
+            moveProperties,
+          )
+        )
+      )
+    }
+    await chrome.windows.remove(
+      createdWindow.id,
+    )
+  }
+}
+
+/**
+ * Closes inactive tabs for the last 15 minutes.
+ *
+ * @param {CommandContext} cx
+ * @returns {Promise<void>}
+ */
+export async function closeInactiveTabsForLast15Minutes(cx) {
+  await closeInactiveTabs(cx, 900000)
+}
+
+/**
+ * Closes inactive tabs for the last hour.
+ *
+ * @param {CommandContext} cx
+ * @returns {Promise<void>}
+ */
+export async function closeInactiveTabsForLastHour(cx) {
+  await closeInactiveTabs(cx, 3600000)
+}
+
+/**
+ * Closes inactive tabs for the last 24 hours.
+ *
+ * @param {CommandContext} cx
+ * @returns {Promise<void>}
+ */
+export async function closeInactiveTabsForLast24Hours(cx) {
+  await closeInactiveTabs(cx, 86400000)
+}
+
+/**
+ * Closes inactive tabs for the last 7 days.
+ *
+ * @param {CommandContext} cx
+ * @returns {Promise<void>}
+ */
+export async function closeInactiveTabsForLast7Days(cx) {
+  await closeInactiveTabs(cx, 604800000)
+}
+
+/**
+ * Closes inactive tabs for the last 14 days.
+ *
+ * @param {CommandContext} cx
+ * @returns {Promise<void>}
+ */
+export async function closeInactiveTabsForLast14Days(cx) {
+  await closeInactiveTabs(cx, 1209600000)
 }
 
 /**

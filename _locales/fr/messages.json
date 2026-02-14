@@ -152,6 +152,21 @@
   "closeWindowCommandDescription": {
     "message": "Fermer les onglets · Fermer la fenêtre"
   },
+  "closeInactiveTabsForLast15MinutesCommandDescription": {
+    "message": "Fermer les onglets · Fermer les onglets inactifs depuis au moins 15 minutes"
+  },
+  "closeInactiveTabsForLastHourCommandDescription": {
+    "message": "Fermer les onglets · Fermer les onglets inactifs depuis la dernière heure"
+  },
+  "closeInactiveTabsForLast24HoursCommandDescription": {
+    "message": "Fermer les onglets · Fermer les onglets inactifs depuis au moins 24 heures"
+  },
+  "closeInactiveTabsForLast7DaysCommandDescription": {
+    "message": "Fermer les onglets · Fermer les onglets inactifs depuis au moins 7 jours"
+  },
+  "closeInactiveTabsForLast14DaysCommandDescription": {
+    "message": "Fermer les onglets · Fermer les onglets inactifs depuis au moins 14 jours"
+  },
   "restoreTabCommandDescription": {
     "message": "Fermer les onglets · Rouvrir l’onglet fermé"
   },
