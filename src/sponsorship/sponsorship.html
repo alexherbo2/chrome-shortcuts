@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="color-scheme" content="light">
+    <title>Shortcuts sponsorship page</title>
+    <link rel="stylesheet" href="sponsorship.css">
+  </head>
+  <body>
+    <main>
+      <section>
+        <h1>
+          Shortcuts sponsorship page
+        </h1>
+        <p>
+          <strong>
+            Become a sponsor to taupiqueur,
+            then verify your sponsorship.
+          </strong>
+        </p>
+        <p>
+          Your sponsorship is required to use Shortcuts.
+        </p>
+        <ul class="actions">
+          <li>
+            <a href="#become_a_sponsor_to_taupiqueur" draggable="false">
+              Become a sponsor to taupiqueur
+            </a>
+          </li>
+        </ul>
+      </section>
+      <section id="become_a_sponsor_to_taupiqueur">
+        <h2>
+          Become a sponsor to taupiqueur
+        </h2>
+        <p>
+          Become a sponsor to taupiqueur at
+          <a href="https://github.com/sponsors/taupiqueur" target="_blank">https://github<wbr>.com<wbr>/sponsors<wbr>/taupiqueur</a>.
+          Once logged in, select one of the available tiers or choose a custom amount.
+          If you are new to GitHub, you will need to create an account.
+        </p>
+        <p>
+          Amount must be at least $1.
+          One-time sponsorships are active for 30 days.
+        </p>
+        <ul class="actions">
+          <li>
+            <a href="#sign_in_with_github_to_verify_your_sponsorship" draggable="false">
+              Sign in with GitHub to verify your sponsorship
+            </a>
+          </li>
+        </ul>
+      </section>
+      <section id="sign_in_with_github_to_verify_your_sponsorship">
+        <h2>
+          Sign in with GitHub to verify your sponsorship
+        </h2>
+        <ol>
+          <li>
+            Navigate to <a id="verificationURI" href="https://github.com/login/device" target="_blank">https://github<wbr>.com<wbr>/login<wbr>/device</a>
+            and choose the account you want to be signed in as.
+          </li>
+          <li>
+            Enter your one-time code: <code id="userCode">0000-0000</code>.
+          </li>
+          <li>
+            Click “Continue”.
+            GitHub should display a page that prompts you to authorize “taupiqueur’s app” to
+            verify your GitHub identity and
+            know which resources you can access.
+          </li>
+          <li>
+            Click “Authorize taupiqueur’s app”.
+            After this, Shortcuts should be able to verify your sponsorship.
+          </li>
+        </ol>
+        <fieldset disabled>
+          <legend>
+            <span class="caption">Sponsorship verification</span>
+            <span id="spinner" class="spinner" data-paused="true" aria-label="A progress spinner indicating network activity"></span>
+          </legend>
+          <label>
+            <input type="checkbox" id="deviceFlowCompleted">
+            <span>
+              Authentication successful—You have successfully signed into taupiqueur’s app.
+            </span>
+          </label>
+          <label>
+            <input type="checkbox" id="sponsorFlowCompleted">
+            <span>
+              Sponsorship verified—Your sponsorship to taupiqueur has been verified.
+            </span>
+          </label>
+        </fieldset>
+      </section>
+    </main>
+    <dialog id="sponsor-flow-completed-popover" popover>
+      <main>
+        <h3>Congratulations, you’re all set!</h3>
+        <section>
+          <p>
+            You have successfully signed into taupiqueur’s app
+            and your sponsorship has been verified.
+          </p>
+          <p>
+            You can use Shortcuts
+            and close this page at any time.
+          </p>
+        </section>
+      </main>
+    </dialog>
+    <dialog id="sponsor-flow-error-popover" popover>
+      <pre><code id="sponsor-flow-error-details"></code></pre>
+    </dialog>
+    <script type="module" src="sponsorship.js"></script>
+  </body>
+</html>

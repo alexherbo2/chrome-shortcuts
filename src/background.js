@@ -5,6 +5,7 @@
 // Messaging: https://developer.chrome.com/docs/extensions/develop/concepts/messaging
 
 import * as commands from './commands.js'
+import sponsorshipWorker from './sponsorship/service_worker.js'
 import popupWorker from './popup/service_worker.js'
 import optionsUIWorker from './options_ui/service_worker.js'
 import optionsWorker from './options/service_worker.js'
@@ -17,6 +18,17 @@ const { compare: versionCompare } = new Intl.Collator('en-US', {
 })
 
 const COMMAND_NAME_OFFSET = 4
+
+const GITHUB_CLIENT_ID = 'Iv23liu6LFa9xfIBY36z'
+
+const GITHUB_MAINTAINER_LOGINS = [
+  'taupiqueur',
+]
+
+const CHROME_EXTENSION_IDS = new Set([
+  'kblochbjinbdokphljadjabpkbcibenj',
+  'cjjnfkmjhlogidlicdmpmdhmffmadedn',
+])
 
 const { TAB_GROUP_ID_NONE } = chrome.tabGroups
 
@@ -166,6 +178,8 @@ const suggestionLabels = new Map([
  * https://developer.chrome.com/docs/extensions/reference/api/storage#asynchronous-preload-from-storage
  *
  * @typedef {object} StorageCache
+ * @property {boolean} extensionEnabled
+ * @property {string} accessToken
  * @property {KeyboardMapping[]} commandBindings
  * @property {KeyboardMapping[]} paletteBindings
  * @property {KeyboardMapping[]} pageBindings
@@ -178,6 +192,9 @@ const suggestionLabels = new Map([
  * @property {string} optionsPage
  * @property {string} shortcutsPage
  * @property {string} pageCapturePage
+ * @property {string} popupPage
+ * @property {string} paywallPage
+ * @property {string} sponsorshipPage
  *
  * @type {StorageCache}
  */
@@ -205,6 +222,9 @@ async function setLocalizedPages() {
         optionsPage: chrome.runtime.getURL('src/options/options.html'),
         shortcutsPage: 'chrome://extensions/shortcuts#:~:text=Shortcuts,-Activate the extension',
         pageCapturePage: chrome.runtime.getURL('src/page_capture/page_capture.html'),
+        popupPage: chrome.runtime.getURL('src/popup/popup.html'),
+        paywallPage: chrome.runtime.getURL('src/paywall/paywall.html'),
+        sponsorshipPage: chrome.runtime.getURL('src/sponsorship/sponsorship.html'),
       })
       break
 
@@ -219,6 +239,9 @@ async function setLocalizedPages() {
         optionsPage: chrome.runtime.getURL('src/options/options.fr.html'),
         shortcutsPage: 'chrome://extensions/shortcuts#:~:text=Shortcuts,-Activer l’extension',
         pageCapturePage: chrome.runtime.getURL('src/page_capture/page_capture.fr.html'),
+        popupPage: chrome.runtime.getURL('src/popup/popup.fr.html'),
+        paywallPage: chrome.runtime.getURL('src/paywall/paywall.fr.html'),
+        sponsorshipPage: chrome.runtime.getURL('src/sponsorship/sponsorship.fr.html'),
       })
       break
 
@@ -233,6 +256,9 @@ async function setLocalizedPages() {
         optionsPage: chrome.runtime.getURL('src/options/options.html'),
         shortcutsPage: 'chrome://extensions/shortcuts#:~:text=Shortcuts',
         pageCapturePage: chrome.runtime.getURL('src/page_capture/page_capture.html'),
+        popupPage: chrome.runtime.getURL('src/popup/popup.html'),
+        paywallPage: chrome.runtime.getURL('src/paywall/paywall.html'),
+        sponsorshipPage: chrome.runtime.getURL('src/sponsorship/sponsorship.html'),
       })
   }
 }
@@ -477,6 +503,12 @@ async function onInstall() {
     active: true,
     url: storageCache.homePage
   })
+  await enableExtensionFeatures()
+  if (CHROME_EXTENSION_IDS.has(chrome.runtime.id)) {
+    await chrome.alarms.create('checkSponsorship', {
+      delayInMinutes: 60,
+    })
+  }
 }
 
 /**
@@ -497,6 +529,11 @@ async function onUpdate(previousVersion) {
       setLocalizedPages(),
       runContentScripts(),
     ])
+    if (CHROME_EXTENSION_IDS.has(chrome.runtime.id)) {
+      await checkSponsorship({
+        accessToken: storageCache.accessToken,
+      })
+    }
   } else {
     createMenuItems()
     await Promise.all([
@@ -504,6 +541,11 @@ async function onUpdate(previousVersion) {
       setLocalizedPages(),
       runContentScripts(),
     ])
+    if (CHROME_EXTENSION_IDS.has(chrome.runtime.id)) {
+      await checkSponsorship({
+        accessToken: storageCache.accessToken,
+      })
+    }
   }
 }
 
@@ -522,6 +564,46 @@ async function onStartup() {
     updateMenuItems(),
     recentTabsManager.onStartup(),
   ])
+  if (CHROME_EXTENSION_IDS.has(chrome.runtime.id)) {
+    await checkSponsorship({
+      accessToken: storageCache.accessToken,
+    })
+  }
+}
+
+async function checkSponsorship({
+  accessToken,
+}) {
+  try {
+    const sponsorshipCount = await sponsorshipWorker.requestSponsorshipCount({
+      accessToken,
+    })
+    if (sponsorshipCount >= GITHUB_MAINTAINER_LOGINS.length) {
+      await enableExtensionFeatures()
+    } else {
+      await disableExtensionFeatures()
+    }
+  } catch {
+    await disableExtensionFeatures()
+  }
+}
+
+async function enableExtensionFeatures() {
+  await chrome.action.setPopup({
+    popup: storageCache.popupPage,
+  })
+  await chrome.storage.session.set({
+    extensionEnabled: true,
+  })
+}
+
+async function disableExtensionFeatures() {
+  await chrome.action.setPopup({
+    popup: storageCache.paywallPage,
+  })
+  await chrome.storage.session.set({
+    extensionEnabled: false,
+  })
 }
 
 /**
@@ -638,7 +720,14 @@ async function onCommand(commandNameWithIndex, tab) {
     manualPage: storageCache.manualPage,
     shortcutsPage: storageCache.shortcutsPage,
     themeStorePage: storageCache.themeStorePage,
+    sponsorshipPage: storageCache.sponsorshipPage,
     pageCapturePage: storageCache.pageCapturePage,
+  })
+}
+
+async function onCommandPaywall(commandName, tab) {
+  await chrome.action.openPopup({
+    windowId: tab.windowId,
   })
 }
 
@@ -680,7 +769,7 @@ async function onMenuItemClicked(info, tab) {
     case 'open_sponsorship_page':
       openNewTab({
         active: true,
-        url: 'https://github.com/sponsors/taupiqueur',
+        url: storageCache.sponsorshipPage,
         openerTabId: tab.id,
       })
       break
@@ -919,6 +1008,17 @@ async function onMessageExternal(message, sender) {
   }
 }
 
+async function onMessageExternalPaywall(message, sender) {
+  switch (message.type) {
+    case 'themeSync': {
+      await chrome.action.openPopup({
+        windowId: sender.tab.windowId,
+      })
+      break
+    }
+  }
+}
+
 /**
  * Handles long-lived connections.
  * Uses the channel name to distinguish different types of connections.
@@ -930,6 +1030,15 @@ async function onMessageExternal(message, sender) {
  */
 function onConnect(port) {
   switch (port.name) {
+    case 'sponsorship':
+      sponsorshipWorker.onConnect(port, {
+        clientId: GITHUB_CLIENT_ID,
+        maintainerLogins: GITHUB_MAINTAINER_LOGINS,
+        onDeviceFlowCompleted,
+        onSponsorFlowCompleted,
+      })
+      break
+
     case 'popup':
       popupWorker.onConnect(port, {
         recentTabsManager,
@@ -941,6 +1050,7 @@ function onConnect(port) {
         manualPage: storageCache.manualPage,
         shortcutsPage: storageCache.shortcutsPage,
         themeStorePage: storageCache.themeStorePage,
+        sponsorshipPage: storageCache.sponsorshipPage,
         pageCapturePage: storageCache.pageCapturePage,
       })
       break
@@ -964,6 +1074,29 @@ function onConnect(port) {
         type: 'error',
         message: `Unknown type of connection: ${port.name}`
       })
+  }
+}
+
+function onConnectPaywall(port) {
+  switch (port.name) {
+    case 'sponsorship':
+      sponsorshipWorker.onConnect(port, {
+        clientId: GITHUB_CLIENT_ID,
+        maintainerLogins: GITHUB_MAINTAINER_LOGINS,
+        onDeviceFlowCompleted,
+        onSponsorFlowCompleted,
+      })
+      break
+
+    case 'options_ui':
+      optionsUIWorker.onConnect(port, {
+        optionsPage: storageCache.paywallPage,
+      })
+      break
+
+    case 'manual':
+      manualWorker.onConnect(port)
+      break
   }
 }
 
@@ -1022,9 +1155,44 @@ function onWindowFocusChanged(windowId) {
   recentTabsManager.onWindowFocusChanged(windowId)
 }
 
+/**
+ * Handles alarm activation, when an alarm has elapsed.
+ *
+ * https://developer.chrome.com/docs/extensions/reference/api/alarms#event-onAlarm
+ *
+ * @param {chrome.alarms.Alarm} alarm
+ * @returns {Promise<void>}
+ */
+async function onAlarm(alarm) {
+  switch (alarm.name) {
+    case 'checkSponsorship': {
+      await checkSponsorship({
+        accessToken: storageCache.accessToken,
+      })
+      break
+    }
+  }
+}
+
+async function onDeviceFlowCompleted({
+  accessToken,
+}) {
+  await chrome.storage.local.set({
+    accessToken,
+  })
+}
+
+async function onSponsorFlowCompleted() {
+  await enableExtensionFeatures()
+}
+
 const allStorageLoaded = Promise.all([
   chrome.storage.sync.get().then((syncStorage) => {
     Object.assign(storageCache, syncStorage)
+  }),
+
+  chrome.storage.local.get().then((localStorage) => {
+    Object.assign(storageCache, localStorage)
   }),
 
   chrome.storage.session.get().then((sessionStorage) => {
@@ -1056,7 +1224,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 chrome.commands.onCommand.addListener((commandName, tab) => {
   allStorageLoaded.then(() => {
-    onCommand(commandName, tab)
+    if (storageCache.extensionEnabled) {
+      onCommand(commandName, tab)
+    } else {
+      onCommandPaywall(commandName, tab)
+    }
   })
 })
 
@@ -1074,13 +1246,21 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 
 chrome.runtime.onMessageExternal.addListener((message, sender) => {
   allStorageLoaded.then(() => {
-    onMessageExternal(message, sender)
+    if (storageCache.extensionEnabled) {
+      onMessageExternal(message, sender)
+    } else {
+      onMessageExternalPaywall(message, sender)
+    }
   })
 })
 
 chrome.runtime.onConnect.addListener((port) => {
   allStorageLoaded.then(() => {
-    onConnect(port)
+    if (storageCache.extensionEnabled) {
+      onConnect(port)
+    } else {
+      onConnectPaywall(port)
+    }
   })
 })
 
@@ -1105,5 +1285,11 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
 chrome.windows.onFocusChanged.addListener((windowId) => {
   allStorageLoaded.then(() => {
     onWindowFocusChanged(windowId)
+  })
+})
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  allStorageLoaded.then(() => {
+    onAlarm(alarm)
   })
 })
