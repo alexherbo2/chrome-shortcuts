@@ -356,6 +356,18 @@ Finally, to complement the built-in keyboard shortcuts, I’ve assigned
 `Alt+Y` to copy page URLs, and
 `Alt+I` to focus text fields.
 
+## Plans
+
+### About in-app purchases and subscriptions
+
+Shortcuts contains in-app purchases via subscriptions, with 60 minutes of full access to explore all features.
+
+To continue using the extension after that timeframe—Right-click the Shortcuts toolbar button and select “Sponsor this project”.
+There, you’ll find a step-by-step process to become a sponsor to taupiqueur and verify your sponsorship.
+
+> [!NOTE]
+> You need an internet connection and a GitHub account for verification.
+
 ## Commands
 
 Commands are actions that can be performed with keyboard shortcuts or mouse clicks in the extension’s popup.
@@ -392,6 +404,7 @@ Command | Description | Windows and Linux key | macOS key | Popup key
 `openShortcutsOptionsPage` | Open the Shortcuts “Options” page | | | `F2`
 `openShortcutsShortcutsPage` | Open the Shortcuts “Keyboard shortcuts” page | | | `F3`
 `openShortcutsThemeStore` | Open the Shortcuts “Theme Store” page | | | `F4`
+`openShortcutsSponsorshipPage` | Open the Shortcuts “Sponsorship” page | | |
 `openCommandPalette` | Open the command palette | | | `Slash`, `Control+KeyF`
 `closePopup` | Close the popup window | | | `Escape`, `Control+KeyC`, `KeyQ`
 
