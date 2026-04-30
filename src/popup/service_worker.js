@@ -18,6 +18,7 @@
  * @property {string} manualPage
  * @property {string} shortcutsPage
  * @property {string} themeStorePage
+ * @property {string} sponsorshipPage
  * @property {string} pageCapturePage
  */
 

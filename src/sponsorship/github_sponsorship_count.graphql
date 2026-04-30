@@ -1,0 +1,11 @@
+query(
+  $maintainerLogins: [String!]
+) {
+  viewer {
+    sponsorshipsAsSponsor(
+      maintainerLogins: $maintainerLogins
+    ) {
+      totalCount
+    }
+  }
+}

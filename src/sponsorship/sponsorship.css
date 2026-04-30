@@ -1,0 +1,536 @@
+:root {
+  color-scheme: light;
+
+  --background-color: light-dark(
+    white,
+    white
+  );
+
+  --foreground-color: light-dark(
+    black,
+    black
+  );
+
+  --background-image: url(
+    "https://raw.githubusercontent.com/taupiqueur/chrome-shortcuts/ca42e18a13218334e71c9bfe38ceba30f3e03bfd/the-world-by-akhts.webp"
+  );
+
+  --under-page-background-color: light-dark(
+    royalblue,
+    royalblue
+  );
+
+  --scrollbar-thumb-color: light-dark(
+    var(--dark-yellow-color),
+    var(--dark-yellow-color)
+  );
+
+  --scrollbar-track-color: light-dark(
+    transparent,
+    transparent
+  );
+
+  --text-field-background-color: light-dark(
+    oklch(
+      from whitesmoke calc(l - 0.05) c h / 0.9
+    ),
+    oklch(
+      from var(--light-black-color) calc(l + 0.07) c h / 0.9
+    )
+  );
+
+  --text-field-border-color: light-dark(
+    var(--yellow-color),
+    oklch(
+      from var(--light-black-color) calc(l + 0.1) c h
+    )
+  );
+
+  --placeholder-text-color: light-dark(
+    oklch(
+      from black l c h / 0.25
+    ),
+    oklch(
+      from white l c h / 0.25
+    )
+  );
+
+  --primary-button-text-color: light-dark(
+    white,
+    white
+  );
+
+  --primary-button-background-color: light-dark(
+    royalblue,
+    royalblue
+  );
+
+  --primary-button-active-background-color: light-dark(
+    var(--dark-blue-color),
+    var(--light-blue-color)
+  );
+
+  --selected-text-color: light-dark(
+    var(--light-black-color),
+    var(--light-black-color)
+  );
+
+  --selected-text-background-color: light-dark(
+    var(--yellow-color),
+    oklch(
+      from var(--yellow-color) calc(l - 0.05) calc(c - 0.005) h
+    )
+  );
+
+  --control-accent-color: light-dark(
+    var(--dark-yellow-color),
+    var(--dark-yellow-color)
+  );
+
+  --keyboard-focus-indicator-color: light-dark(
+    var(--dark-yellow-color),
+    var(--dark-yellow-color)
+  );
+
+  --label-color: light-dark(
+    oklch(
+      from var(--light-black-color) l c h / 0.9
+    ),
+    lightgray
+  );
+
+  --secondary-label-color: light-dark(
+    oklch(
+      from black l c h / 0.5
+    ),
+    oklch(
+      from white l c h / 0.5
+    )
+  );
+
+  --tertiary-label-color: light-dark(
+    oklch(
+      from black l c h / 0.5
+    ),
+    oklch(
+      from white l c h / 0.5
+    )
+  );
+
+  --link-color: light-dark(
+    royalblue,
+    royalblue
+  );
+
+  --disabled-control-text-color: light-dark(
+    oklch(
+      from black l c h / 0.5
+    ),
+    oklch(
+      from white l c h / 0.5
+    )
+  );
+
+  --separator-color: light-dark(
+    oklch(
+      from black l c h / 0.1
+    ),
+    oklch(
+      from white l c h / 0.1
+    )
+  );
+
+  --shadow-color: light-dark(
+    oklch(
+      from black l c h / 0.35
+    ),
+    oklch(
+      from black l c h / 0.35
+    )
+  );
+
+  --popover-background-color: light-dark(
+    white,
+    black
+  );
+
+  --popover-text-color: light-dark(
+    black,
+    white
+  );
+
+  --popover-border-color: light-dark(
+    lightgray,
+    lightgray
+  );
+
+  --caption-background-color: light-dark(
+    var(--light-gray-color),
+    var(--light-gray-color)
+  );
+
+  --caption-text-color: light-dark(
+    black,
+    black
+  );
+
+  --light-black-color: oklch(
+    from black calc(l + 0.3) c h
+  );
+
+  --light-gray-color: oklch(
+    from lightgray calc(l + 0.05) c h
+  );
+
+  --light-blue-color: oklch(
+    from royalblue calc(l + 0.05) c h
+  );
+
+  --dark-blue-color: oklch(
+    from royalblue calc(l - 0.05) c h
+  );
+
+  --yellow-color: oklch(
+    from #f6d814 l calc(c - 0.05) h
+  );
+
+  --light-yellow-color: oklch(
+    from #f6e68e l calc(c - 0.03) h
+  );
+
+  --dark-yellow-color: oklch(
+    from #efc07b l calc(c - 0.03) h
+  );
+
+  --dark-yellow-contrast-color: oklch(
+    from #efc07b l c h
+  );
+}
+
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2147483648;
+  mask: var(--background-image) center/contain;
+  background-color: var(--background-image-color);
+}
+
+@media (max-width: 800px) {
+  figure {
+    margin-inline: 0;
+  }
+
+  header h1 {
+    font-size: 1.9em;
+  }
+
+  nav ul {
+    font-size: 0.9em;
+  }
+}
+
+@keyframes spinner {
+  0.0% {
+    content: "⣾";
+  }
+
+  12.5% {
+    content: "⣽";
+  }
+
+  25.0% {
+    content: "⣻";
+  }
+
+  37.5% {
+    content: "⢿";
+  }
+
+  50.0% {
+    content: "⡿";
+  }
+
+  62.5% {
+    content: "⣟";
+  }
+
+  75.0% {
+    content: "⣯";
+  }
+
+  87.5% {
+    content: "⣷";
+  }
+}
+
+.spinner {
+  font-family: sans-serif;
+}
+
+.spinner::before {
+  content: "";
+  animation: spinner 640ms steps(1) infinite;
+}
+
+.spinner:is([data-paused="true"], [data-paused=""])::before {
+  animation-play-state: paused;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--under-page-background-color);
+  color: var(--foreground-color);
+  font-family: system-ui;
+  font-size: 18px;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  place-items: safe center;
+  place-content: safe center;
+}
+
+main {
+  margin: auto;
+  padding: 0.5rem 1rem;
+  width: 50rem;
+  height: 30rem;
+  background-color: var(--background-color);
+  color: var(--foreground-color);
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  overflow-wrap: anywhere;
+}
+
+main figure {
+  margin-block: 2.5rem;
+}
+
+main figure:nth-of-type(1) figcaption {
+  margin-block-start: -1.5rem;
+}
+
+main figure:nth-of-type(2) figcaption {
+  margin-block-start: -1.5rem;
+}
+
+main figure:nth-of-type(3) figcaption {
+  margin-block-start: 0.5rem;
+}
+
+section {
+  margin-block: 0;
+}
+
+section {
+  display: flex;
+  flex-direction: column;
+}
+
+section:nth-of-type(1) {
+  display: flex;
+  flex-direction: column;
+  place-items: safe center;
+  place-content: safe center;
+}
+
+section:nth-of-type(1) {
+  display: flex;
+  flex-direction: column;
+  place-items: safe center;
+  place-content: safe center;
+}
+
+section:nth-of-type(n+2):not(:target) {
+  display: none;
+}
+
+body:has(section:target) section:nth-of-type(1):not(:target) {
+  display: none;
+}
+
+main > details > summary {
+  display: none;
+}
+
+ol.table-of-contents,
+ol.table-of-contents ol {
+  list-style: none;
+}
+
+ol.table-of-contents {
+  display: flex;
+  flex-direction: row;
+  place-items: safe center;
+  place-content: safe center;
+  gap: 0 3ch;
+  padding-inline-start: 0;
+}
+
+ol.table-of-contents li a {
+  display: block;
+  width: 2ch;
+  height: 2ch;
+  overflow: clip;
+  user-select: none;
+  border-radius: 50%;
+  background-color: var(--under-page-background-color);
+  color: var(--under-page-background-color);
+  opacity: 0.1;
+}
+
+ol.table-of-contents li::after {
+  content: "";
+  display: block;
+  width: 1.5rem;
+  height: 0.3rem;
+  transform: translateX(120%) translateY(-300%);
+  background-color: var(--under-page-background-color);
+  color: var(--under-page-background-color);
+  opacity: 0.1;
+}
+
+ol.table-of-contents li:last-of-type::after {
+  opacity: 0;
+}
+
+ol.table-of-contents a:is(:hover, :focus, :active) {
+  outline: 3px solid var(--keyboard-focus-indicator-color);
+  outline-offset: -1px;
+}
+
+ol.table-of-contents li:nth-of-type(1) a,
+body:has(section:nth-of-type(2):target) ol.table-of-contents li:nth-of-type(-n+2) a,
+body:has(section:nth-of-type(2):target) ol.table-of-contents li:nth-of-type(-n+1)::after,
+body:has(section:nth-of-type(3):target) ol.table-of-contents li:nth-of-type(-n+3) a,
+body:has(section:nth-of-type(3):target) ol.table-of-contents li:nth-of-type(-n+2)::after {
+  opacity: 1;
+}
+
+h1 {
+  font-size: 3rem;
+}
+
+h2 {
+  font-size: 2rem;
+}
+
+a {
+  color: var(--link-color);
+}
+
+a:not(:hover, :focus, :active) {
+  text-decoration: inherit;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+legend {
+  background-color: var(--caption-background-color);
+  color: var(--caption-text-color);
+  padding: 0.2rem 0.4rem;
+  display: grid;
+  grid-template: "spinner caption";
+  gap: 0 0.5ch;
+}
+
+legend .caption {
+  grid-area: caption;
+}
+
+legend .spinner {
+  grid-area: spinner;
+}
+
+input {
+  margin: 0.4rem;
+}
+
+label {
+  display: block;
+}
+
+ul.actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  list-style: none;
+  margin-block: 2rem;
+  padding: 0;
+  gap: 1rem;
+}
+
+ul.actions li a {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--primary-button-background-color);
+  color: var(--primary-button-text-color);
+  text-decoration: none;
+  user-select: none;
+}
+
+ul.actions li a:active:hover {
+  background-color: var(--primary-button-active-background-color);
+}
+
+ul.actions li a:focus-visible {
+  outline: 3px solid var(--keyboard-focus-indicator-color);
+  outline-offset: -1px;
+}
+
+pre {
+  text-wrap: wrap;
+  overflow-wrap: break-word;
+}
+
+[popover]:popover-open {
+  border: none;
+}
+
+[popover]:popover-open main {
+  display: flex;
+  flex-direction: column;
+  place-items: safe center;
+  place-content: safe center;
+}
+
+[popover]:popover-open :is(h1, h2, h3, h4, h5, h6) {
+  margin-block-end: 3rem;
+}
+
+[popover]:popover-open footer {
+  margin-block: 0.3rem;
+  padding: 0.9rem;
+  border-top: 1px solid var(--separator-color);
+  display: flex;
+  justify-content: flex-end;
+}
+
+[popover]:popover-open footer ul.actions {
+  margin-block: 0;
+}
+
+[popover]:popover-open footer button {
+  border: none;
+  background-color: var(--primary-button-background-color);
+  color: var(--primary-button-text-color);
+  padding: 0.75rem 1.5rem;
+}
+
+[popover]:popover-open footer button:focus {
+  outline: none;
+}
+
+[popover]:popover-open footer button:active:hover {
+  background-color: var(--primary-button-active-background-color);
+}
