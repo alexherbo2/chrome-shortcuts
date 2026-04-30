@@ -6,6 +6,7 @@
 
 import * as commands from './commands.js'
 import popupWorker from './popup/service_worker.js'
+import sponsorshipWorker from './sponsorship/service_worker.js'
 import optionsUIWorker from './options_ui/service_worker.js'
 import optionsWorker from './options/service_worker.js'
 import manualWorker from './manual/service_worker.js'
@@ -15,6 +16,19 @@ import SuggestionEngine, { SuggestionType } from './suggestion_engine/suggestion
 const { compare: versionCompare } = new Intl.Collator('en-US', {
   numeric: true
 })
+
+const GITHUB_CLIENT_ID = 'Iv23liu6LFa9xfIBY36z'
+
+const GITHUB_MAINTAINER_LOGINS = new Set([
+  'taupiqueur',
+  'alexherbo2',
+])
+
+const SPONSORABLE_EXTENSION_IDS = new Set([
+  'kblochbjinbdokphljadjabpkbcibenj',
+  'jfjjblckjeepedfijbpmdlneenelbhgf',
+  'cjjnfkmjhlogidlicdmpmdhmffmadedn',
+])
 
 const COMMAND_NAME_OFFSET = 4
 
@@ -178,6 +192,11 @@ const suggestionLabels = new Map([
  * @property {string} optionsPage
  * @property {string} shortcutsPage
  * @property {string} pageCapturePage
+ * @property {string} popupPage
+ * @property {string} paywallPage
+ * @property {string} sponsorshipPage
+ * @property {boolean} extensionFeaturesEnabled
+ * @property {string} accessToken
  *
  * @type {StorageCache}
  */
@@ -196,8 +215,9 @@ async function setLocalizedPages() {
     case 'en-GB':
     case 'en-US':
       await chrome.action.setPopup({
-        popup: 'src/popup/popup.html'
+        popup: 'src/popup/popup.html',
       })
+
       await chrome.storage.session.set({
         homePage: 'https://taupiqueur.github.io/chrome-shortcuts',
         themeStorePage: 'https://taupiqueur.github.io/chrome-shortcuts/themes.html',
@@ -205,13 +225,17 @@ async function setLocalizedPages() {
         optionsPage: chrome.runtime.getURL('src/options/options.html'),
         shortcutsPage: 'chrome://extensions/shortcuts#:~:text=Shortcuts,-Activate the extension',
         pageCapturePage: chrome.runtime.getURL('src/page_capture/page_capture.html'),
+        popupPage: chrome.runtime.getURL('src/popup/popup.html'),
+        paywallPage: chrome.runtime.getURL('src/paywall/paywall.html'),
+        sponsorshipPage: chrome.runtime.getURL('src/sponsorship/sponsorship.html'),
       })
       break
 
     case 'fr':
       await chrome.action.setPopup({
-        popup: 'src/popup/popup.fr.html'
+        popup: 'src/popup/popup.fr.html',
       })
+
       await chrome.storage.session.set({
         homePage: 'https://taupiqueur.github.io/chrome-shortcuts/fr/',
         themeStorePage: 'https://taupiqueur.github.io/chrome-shortcuts/fr/themes.html',
@@ -219,13 +243,17 @@ async function setLocalizedPages() {
         optionsPage: chrome.runtime.getURL('src/options/options.fr.html'),
         shortcutsPage: 'chrome://extensions/shortcuts#:~:text=Shortcuts,-Activer l’extension',
         pageCapturePage: chrome.runtime.getURL('src/page_capture/page_capture.fr.html'),
+        popupPage: chrome.runtime.getURL('src/popup/popup.fr.html'),
+        paywallPage: chrome.runtime.getURL('src/paywall/paywall.fr.html'),
+        sponsorshipPage: chrome.runtime.getURL('src/sponsorship/sponsorship.fr.html'),
       })
       break
 
     default:
       await chrome.action.setPopup({
-        popup: 'src/popup/popup.html'
+        popup: 'src/popup/popup.html',
       })
+
       await chrome.storage.session.set({
         homePage: 'https://taupiqueur.github.io/chrome-shortcuts',
         themeStorePage: 'https://taupiqueur.github.io/chrome-shortcuts/themes.html',
@@ -233,6 +261,9 @@ async function setLocalizedPages() {
         optionsPage: chrome.runtime.getURL('src/options/options.html'),
         shortcutsPage: 'chrome://extensions/shortcuts#:~:text=Shortcuts',
         pageCapturePage: chrome.runtime.getURL('src/page_capture/page_capture.html'),
+        popupPage: chrome.runtime.getURL('src/popup/popup.html'),
+        paywallPage: chrome.runtime.getURL('src/paywall/paywall.html'),
+        sponsorshipPage: chrome.runtime.getURL('src/sponsorship/sponsorship.html'),
       })
   }
 }
@@ -466,17 +497,40 @@ function onInstalled(details) {
  */
 async function onInstall() {
   const defaults = await optionsWorker.getDefaults()
-  await chrome.storage.sync.set(defaults)
+
+  await chrome.storage.sync.set(
+    defaults,
+  )
+
   createMenuItems()
+
   await Promise.all([
     setChromeCommandBindings(),
     setLocalizedPages(),
     runContentScripts(),
   ])
-  await chrome.tabs.create({
+
+  await enableExtensionFeatures()
+
+  if (SPONSORABLE_EXTENSION_IDS.has(chrome.runtime.id)) {
+    await chrome.alarms.create('checkSponsorship', {
+      delayInMinutes: 60,
+      periodInMinutes: 1_440,
+    })
+  }
+
+  const tabs = await chrome.tabs.query({
     active: true,
-    url: storageCache.homePage
+    lastFocusedWindow: true,
   })
+
+  if (tabs.length > 0) {
+    await openNewTab({
+      active: true,
+      url: storageCache.homePage,
+      openerTabId: tabs[0].id,
+    })
+  }
 }
 
 /**
@@ -486,24 +540,31 @@ async function onInstall() {
  * @returns {Promise<void>}
  */
 async function onUpdate(previousVersion) {
-  if (
-    versionCompare(previousVersion, '0.20.0') < 0
-  ) {
+  if (versionCompare(previousVersion, '0.20.0') < 0) {
     const defaults = await optionsWorker.getDefaults()
-    await chrome.storage.sync.set(defaults)
-    createMenuItems()
-    await Promise.all([
-      setChromeCommandBindings(),
-      setLocalizedPages(),
-      runContentScripts(),
-    ])
+
+    await chrome.storage.sync.set(
+      defaults,
+    )
+  }
+
+  createMenuItems()
+
+  await Promise.all([
+    setChromeCommandBindings(),
+    setLocalizedPages(),
+    runContentScripts(),
+  ])
+
+  if (SPONSORABLE_EXTENSION_IDS.has(chrome.runtime.id)) {
+    await disableExtensionFeatures()
+
+    await chrome.alarms.create('checkSponsorship', {
+      delayInMinutes: 0,
+      periodInMinutes: 1_440,
+    })
   } else {
-    createMenuItems()
-    await Promise.all([
-      setChromeCommandBindings(),
-      setLocalizedPages(),
-      runContentScripts(),
-    ])
+    await enableExtensionFeatures()
   }
 }
 
@@ -516,12 +577,108 @@ async function onUpdate(previousVersion) {
  * @returns {Promise<void>}
  */
 async function onStartup() {
+  updateMenuItems()
+
   await Promise.all([
     setChromeCommandBindings(),
     setLocalizedPages(),
-    updateMenuItems(),
-    recentTabsManager.onStartup(),
+    runContentScripts(),
   ])
+
+  if (SPONSORABLE_EXTENSION_IDS.has(chrome.runtime.id)) {
+    await disableExtensionFeatures()
+
+    await chrome.alarms.create('checkSponsorship', {
+      delayInMinutes: 0,
+      periodInMinutes: 1_440,
+    })
+  } else {
+    await enableExtensionFeatures()
+  }
+
+  recentTabsManager.onStartup()
+}
+
+/**
+ * Verifies the user’s sponsorship.
+ * Enables or disables extension features.
+ *
+ * @returns {Promise<void>}
+ */
+async function checkSponsorship() {
+  try {
+    const {
+      viewerLogin,
+      sponsorshipCount,
+    } = await sponsorshipWorker.getViewerInfo({
+      accessToken: storageCache.accessToken,
+      maintainerLogins: Array.from(
+        GITHUB_MAINTAINER_LOGINS,
+      ),
+    })
+
+    if (GITHUB_MAINTAINER_LOGINS.has(viewerLogin)) {
+      await enableExtensionFeatures()
+    } else if (sponsorshipCount >= 1) {
+      await enableExtensionFeatures()
+    } else {
+      await disableExtensionFeatures()
+    }
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw error
+    } else {
+      await disableExtensionFeatures()
+    }
+  }
+}
+
+/**
+ * Enables extension features.
+ *
+ * @returns {Promise<void>}
+ */
+async function enableExtensionFeatures() {
+  await chrome.storage.session.set({
+    extensionFeaturesEnabled: true,
+  })
+
+  await chrome.action.setPopup({
+    popup: storageCache.popupPage,
+  })
+
+  await chrome.action.setIcon({
+    path: {
+      16: '/assets/shortcuts-logo@16px.png',
+      32: '/assets/shortcuts-logo@32px.png',
+      48: '/assets/shortcuts-logo@48px.png',
+      128: '/assets/shortcuts-logo@128px.png',
+    },
+  })
+}
+
+/**
+ * Disables extension features.
+ *
+ * @returns {Promise<void>}
+ */
+async function disableExtensionFeatures() {
+  await chrome.storage.session.set({
+    extensionFeaturesEnabled: false,
+  })
+
+  await chrome.action.setPopup({
+    popup: storageCache.paywallPage,
+  })
+
+  await chrome.action.setIcon({
+    path: {
+      16: '/assets/disabled-shortcuts-logo@16px.png',
+      32: '/assets/disabled-shortcuts-logo@32px.png',
+      48: '/assets/disabled-shortcuts-logo@48px.png',
+      128: '/assets/disabled-shortcuts-logo@128px.png',
+    },
+  })
 }
 
 /**
@@ -638,7 +795,23 @@ async function onCommand(commandNameWithIndex, tab) {
     manualPage: storageCache.manualPage,
     shortcutsPage: storageCache.shortcutsPage,
     themeStorePage: storageCache.themeStorePage,
+    sponsorshipPage: storageCache.sponsorshipPage,
     pageCapturePage: storageCache.pageCapturePage,
+  })
+}
+
+/**
+ * Handles keyboard shortcuts, when extension features are disabled.
+ *
+ * https://developer.chrome.com/docs/extensions/reference/api/commands#event-onCommand
+ *
+ * @param {string} commandName
+ * @param {chrome.tabs.Tab} tab
+ * @returns {Promise<void>}
+ */
+async function onCommandPaywall(commandName, tab) {
+  await chrome.action.openPopup({
+    windowId: tab.windowId,
   })
 }
 
@@ -680,7 +853,7 @@ async function onMenuItemClicked(info, tab) {
     case 'open_sponsorship_page':
       openNewTab({
         active: true,
-        url: 'https://github.com/sponsors/taupiqueur',
+        url: storageCache.sponsorshipPage,
         openerTabId: tab.id,
       })
       break
@@ -920,6 +1093,25 @@ async function onMessageExternal(message, sender) {
 }
 
 /**
+ * Handles one-time external requests, when extension features are disabled.
+ *
+ * https://developer.chrome.com/docs/extensions/develop/concepts/messaging#external
+ *
+ * @param {object} message
+ * @param {chrome.runtime.MessageSender} sender
+ * @returns {Promise<void>}
+ */
+async function onMessageExternalPaywall(message, sender) {
+  switch (message.type) {
+    case 'themeSync':
+      await chrome.action.openPopup({
+        windowId: sender.tab.windowId,
+      })
+      break
+  }
+}
+
+/**
  * Handles long-lived connections.
  * Uses the channel name to distinguish different types of connections.
  *
@@ -941,7 +1133,17 @@ function onConnect(port) {
         manualPage: storageCache.manualPage,
         shortcutsPage: storageCache.shortcutsPage,
         themeStorePage: storageCache.themeStorePage,
+        sponsorshipPage: storageCache.sponsorshipPage,
         pageCapturePage: storageCache.pageCapturePage,
+      })
+      break
+
+    case 'sponsorship':
+      sponsorshipWorker.onConnect(port, {
+        clientId: GITHUB_CLIENT_ID,
+        maintainerLogins: GITHUB_MAINTAINER_LOGINS,
+        onDeviceFlowCompleted,
+        onSponsorFlowCompleted,
       })
       break
 
@@ -962,7 +1164,45 @@ function onConnect(port) {
     default:
       port.postMessage({
         type: 'error',
-        message: `Unknown type of connection: ${port.name}`
+        message: `Unknown type of connection: ${port.name}`,
+      })
+  }
+}
+
+/**
+ * Handles long-lived connections, when extension features are disabled.
+ * Uses the channel name to distinguish different types of connections.
+ *
+ * https://developer.chrome.com/docs/extensions/develop/concepts/messaging#connect
+ *
+ * @param {chrome.runtime.Port} port
+ * @returns {void}
+ */
+function onConnectPaywall(port) {
+  switch (port.name) {
+    case 'sponsorship':
+      sponsorshipWorker.onConnect(port, {
+        clientId: GITHUB_CLIENT_ID,
+        maintainerLogins: GITHUB_MAINTAINER_LOGINS,
+        onDeviceFlowCompleted,
+        onSponsorFlowCompleted,
+      })
+      break
+
+    case 'options_ui':
+      optionsUIWorker.onConnect(port, {
+        optionsPage: storageCache.paywallPage,
+      })
+      break
+
+    case 'manual':
+      manualWorker.onConnect(port)
+      break
+
+    default:
+      port.postMessage({
+        type: 'error',
+        message: `Unknown type of connection: ${port.name}`,
       })
   }
 }
@@ -1022,16 +1262,77 @@ function onWindowFocusChanged(windowId) {
   recentTabsManager.onWindowFocusChanged(windowId)
 }
 
+/**
+ * Handles alarm activation, when an alarm has elapsed.
+ *
+ * https://developer.chrome.com/docs/extensions/reference/api/alarms#event-onAlarm
+ *
+ * @param {chrome.alarms.Alarm} alarm
+ * @returns {Promise<void>}
+ */
+async function onAlarm(alarm) {
+  switch (alarm.name) {
+    case 'checkSponsorship':
+      await checkSponsorship()
+      break
+  }
+}
+
+/**
+ * Handles device flow completion,
+ * when the user has approved access.
+ *
+ * @param {string} accessToken
+ * @returns {Promise<void>}
+ */
+async function onDeviceFlowCompleted(
+  accessToken,
+) {
+  await chrome.storage.local.set({
+    accessToken,
+  })
+}
+
+/**
+ * Handles sponsorship flow completion,
+ * when the user’s sponsorship has been verified.
+ *
+ * @returns {Promise<void>}
+ */
+async function onSponsorFlowCompleted() {
+  await enableExtensionFeatures()
+}
+
+/**
+ * Adds items to storage’s cache.
+ *
+ * @param {object} items
+ * @returns {void}
+ */
+function addItemsToStorageCache(
+  items,
+) {
+  Object.assign(
+    storageCache,
+    items,
+  )
+}
+
 const allStorageLoaded = Promise.all([
-  chrome.storage.sync.get().then((syncStorage) => {
-    Object.assign(storageCache, syncStorage)
-  }),
+  chrome.storage.sync
+    .get()
+    .then(addItemsToStorageCache),
 
-  chrome.storage.session.get().then((sessionStorage) => {
-    Object.assign(storageCache, sessionStorage)
-  }),
+  chrome.storage.local
+    .get()
+    .then(addItemsToStorageCache),
 
-  recentTabsManager.restoreState(),
+  chrome.storage.session
+    .get()
+    .then(addItemsToStorageCache),
+
+  recentTabsManager
+    .restoreState(),
 ])
 
 // Set up listeners.
@@ -1056,7 +1357,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 chrome.commands.onCommand.addListener((commandName, tab) => {
   allStorageLoaded.then(() => {
-    onCommand(commandName, tab)
+    if (storageCache.extensionFeaturesEnabled) {
+      onCommand(commandName, tab)
+    } else {
+      onCommandPaywall(commandName, tab)
+    }
   })
 })
 
@@ -1074,13 +1379,21 @@ chrome.runtime.onMessage.addListener((message, sender) => {
 
 chrome.runtime.onMessageExternal.addListener((message, sender) => {
   allStorageLoaded.then(() => {
-    onMessageExternal(message, sender)
+    if (storageCache.extensionFeaturesEnabled) {
+      onMessageExternal(message, sender)
+    } else {
+      onMessageExternalPaywall(message, sender)
+    }
   })
 })
 
 chrome.runtime.onConnect.addListener((port) => {
   allStorageLoaded.then(() => {
-    onConnect(port)
+    if (storageCache.extensionFeaturesEnabled) {
+      onConnect(port)
+    } else {
+      onConnectPaywall(port)
+    }
   })
 })
 
@@ -1105,5 +1418,11 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
 chrome.windows.onFocusChanged.addListener((windowId) => {
   allStorageLoaded.then(() => {
     onWindowFocusChanged(windowId)
+  })
+})
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  allStorageLoaded.then(() => {
+    onAlarm(alarm)
   })
 })
